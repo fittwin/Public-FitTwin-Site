@@ -1,0 +1,461 @@
+<?php
+// $Id: share_widget.module,v 1.1.2.1 2009/03/26 21:12:22 greenskin Exp $
+
+/**
+ * @file
+ * Provides a widget where modules can put their links/forms.
+ *
+ * This module provides a basic sharing widget that other modules can tie into
+ * by the use of tabs.
+ * @see link_codes
+ *
+ * Written by greenSkin.
+ */
+
+/*******************************************************************************
+ * Hook Functions (Drupal)
+ ******************************************************************************/
+
+/**
+ * Implementation of hook_help().
+ */
+function share_widget_help($path, $args) {
+  switch ($path) {
+    case 'admin/build/share':
+      $output = '';
+      $tabs = module_implements('share_tab');
+      if (empty($tabs)) {
+        $output .= '<p>'. t('The Share widget requires at least one tab module to be enabled.') .'</p>';
+      }
+      return $output;
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function share_widget_perm() {
+  return array('use share widget');
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function share_widget_theme() {
+  return array(
+    'share_widget' => array(
+      'arguments' => array('data' => NULL)
+    ),
+    'share_widget_tabs' => array(
+      'arguments' => array('tabs' => NULL, 'nid' => NULL)
+    ),
+    'share_widget_content' => array(
+      'arguments' => array('content' => NULL, 'nid' => NULL)
+    ),
+    'share_widget_tabs_settings' => array(
+      'arguments' => array('form' => NULL)
+    ),
+    'share_widget_page' => array(
+      'arguments' => array('tabs' => NULL, 'content' => NULL)
+    ),
+    'share_widget_block' => array(
+      'arguments' => array('tabs' => NULL)
+    )
+  );
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function share_widget_menu() {
+  $items = array();
+  $items['share/%share/%node'] = array(
+    'description' => 'Share this page',
+    'page callback' => 'share_widget_page',
+    'page arguments' => array(1, 2),
+    'access callback' => 'node_access',
+    'access arguments' => array('view', 2),
+    'file' => 'share_widget.page.inc'
+  );
+  return $items;
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function share_widget_form_alter(&$form, $form_state, $form_id) {
+  if ($form_id == 'share_add_form') {
+    $form['#validate'][] = 'share_widget_add_form_validate';
+  }
+  if ($form_id == 'share_form' && $form['module']['#value'] == 'share_widget') {
+    $share = $form['_share']['#value'];
+
+    $form['share']['name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Link name'),
+      '#description' => t('Specify the name of the Share link.'),
+      '#default_value' => $share->name
+    );
+    $form['share']['effects'] = array(
+      '#type' => 'hidden',
+      '#title' => t("Effects"),
+      '#description' => t("Add animation to the opening and closing of the Share widget."),
+      '#default_value' => $share->effects
+    );
+
+    if (!empty($share->tabs)) {
+      $form['share']['tabs'] = array(
+        '#theme' => 'share_widget_tabs_settings',
+        '#tree' => TRUE
+      );
+      foreach ($share->tabs as $key => $tab) {
+        $form['share']['tabs'][$key] = array('#weight' => $tab['weight']);
+        $form['share']['tabs'][$key]['module'] = array(
+          '#type' => 'hidden',
+          '#value' => $tab['module']
+        );
+        $form['share']['tabs'][$key]['title'] = array(
+          '#type' => 'textfield',
+          '#title' => t('Title'),
+          '#default_value' => $tab['title']
+        );
+        $form['share']['tabs'][$key]['enabled'] = array(
+          '#type' => 'checkbox',
+          '#default_value' => $tab['enabled']
+        );
+        $form['share']['tabs'][$key]['weight'] = array(
+          '#type' => 'weight',
+          '#delta' => 10,
+          '#default_value' => $tab['weight'],
+          '#attributes' => array('class' => 'tab-weight-select')
+        );
+        $form['share']['tabs'][$key]['module'] = array(
+          '#type' => 'hidden',
+          '#value' => $tab['module']
+        );
+
+        if ($share->share_id) {
+          module_invoke($tab['module'], 'share_tab', 'load', $tab);
+        }
+        if ($settings = module_invoke($tab['module'], 'share_tab', 'settings', $tab)) {
+          $form['share']['tabs'][$key]['settings'] = $settings;
+        }
+
+        $form['#validate'][] = 'share_widget_form_validate';
+      }
+    }
+  }
+}
+
+/*******************************************************************************
+ * Hook Functions (Share)
+ ******************************************************************************/
+
+/**
+ * Implementation of hook_share_info().
+ */
+function share_widget_share_info() {
+  return array(
+    'name' => t('Share'),
+    'module' => 'share_widget',
+    'widget' => array(
+      'module' => 'share_widget',
+      'label' => t('Share'),
+      'name' => t('Share'),
+      'effects' => 1,
+      'tabs' => share_widget_default_tabs()
+    )
+  );
+}
+
+/**
+ * Implementation of hook_share().
+ */
+function share_widget_share($op, $share) {
+  switch ($op) {
+    case 'insert':
+      db_query("INSERT INTO {share_widget} (share_id, name, effects) VALUES (%d, '%s', %d)",
+        $share->share_id, $share->name, $share->effects);
+      foreach (module_implements('share_tab') as $module) {
+        db_query("INSERT INTO {share_tabs} (share_id, title, enabled, weight, module) VALUES (%d, '%s', %d, %d, '%s')",
+          $share->share_id, $share->tabs[$module]['title'], $share->tabs[$module]['enabled'], $share->tabs[$module]['weight'], $share->tabs[$module]['module']);
+
+        module_invoke_all('share_tab', 'insert', $share);
+      }
+      break;
+    case 'update':
+      db_query("UPDATE {share_widget} SET name = '%s', effects = %d WHERE share_id = %d",
+        $share->name, $share->effects, $share->share_id);
+      foreach (module_implements('share_tab') as $module) {
+        db_query("UPDATE {share_tabs} SET title = '%s', enabled = %d, weight = %d, module = '%s' WHERE share_id = %d AND module = '%s'",
+          $share->tabs[$module]['title'], $share->tabs[$module]['enabled'], $share->tabs[$module]['weight'], $share->tabs[$module]['module'], $share->share_id, $share->tabs[$module]['module']);
+        if (db_affected_rows() <= 0) {
+          db_query("INSERT INTO {share_tabs} (share_id, title, enabled, weight, module) VALUES (%d, '%s', %d, %d, '%s')",
+            $share->share_id, $share->tabs[$module]['title'], $share->tabs[$module]['enabled'], $share->tabs[$module]['weight'], $share->tabs[$module]['module']);
+          module_invoke($module, 'share_tab', 'insert', $share);
+        }
+        else {
+          module_invoke($module, 'share_tab', 'update', $share);
+        }
+      }
+      break;
+    case 'delete':
+      db_query("DELETE FROM {share_widget} WHERE share_id = %d", $share->share_id);
+      db_query("DELETE FROM {share_tabs} WHERE share_id = %d", $share->share_id);
+      db_query("DELETE FROM {share_node_types} WHERE share_id = %d", $share->share_id);
+      db_query("DELETE FROM {share_terms} WHERE share_id = %d", $share->share_id);
+
+      module_invoke_all('share_tab', 'delete', $share);
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_share_render().
+ */
+function share_widget_share_render($op, $share, $node = NULL) {
+  switch ($op) {
+    case 'link':
+      $links = array();
+      if (is_object($node)) {
+        $links['share_'. $share->share_id .'_'. $node->nid] = array(
+          'title' => $share->name,
+          'href' => 'share/'. $share->share_id .'/'. $node->nid,
+          'attributes' => array('id' => 'share-'. $share->share_id .'-'. $node->nid, 'class' => 'share-link')
+        );
+        share_widget_add_js('link');
+      }
+      return $links;
+    case 'node':
+      $content = array();
+      if (is_object($node)) {
+        $content['share_'. $share->share_id .'_'. $node->nid] = array(
+          '#value' => $share->render($node),
+          '#weight' => $share->weight
+        );
+      }
+      return $content;
+    case 'block':
+      if (is_object($node)) {
+        $tabs = array();
+        foreach ($share->tabs as $module => $tab) {
+          if ($tab['enabled']) {
+            $tabs[$module] = array(
+              'title' => check_plain($tab['title']),
+              'content' => $share->render_tab($tab['module'], $node)
+            );
+          }
+        }
+        return theme('share_widget_block', $tabs);
+      }
+      break;
+  }
+}
+
+/*******************************************************************************
+ * Callback Functions, Forms, and Tables
+ ******************************************************************************/
+
+function share_widget_add_form_validate($form, &$form_state) {
+  if ($form_state['values']['module'] == 'share_widget') {
+    $tabs = module_implements('share_tab');
+    if (empty($tabs)) {
+      form_set_error('module', t('The Share widget requires at least one tab module to be enabled.'));
+    }
+  }
+}
+
+function share_widget_form_validate($form, &$form_state) {
+  $set = FALSE;
+  foreach ($form_state['values']['tabs'] as $key => $tab) {
+    if ($tab['enabled']) {
+      $set = TRUE;
+      break;
+    }
+  }
+  if ($set == FALSE) {
+    form_set_error('_enabled', t('At least one tab needs to be enabled.'));
+    return;
+  }
+  module_invoke_all('share_tab', 'validate', $form_state['values']);
+}
+
+/*******************************************************************************
+ * Module and Helper Functions
+ ******************************************************************************/
+
+function share_widget_add_js($type = 'node') {
+  static $share_widget_js_added = FALSE;
+  static $share_widget_js_link_added = FALSE;
+  static $share_widget_js_block_added = FALSE;
+
+  if ($share_widget_js_added === FALSE) {
+    drupal_add_js(drupal_get_path('module', 'share_widget') .'/js/share_widget.js');
+    $share_widget_js_added = TRUE;
+  }
+
+  switch ($type) {
+    case 'block':
+      if ($share_widget_js_block_added === FALSE) {
+        drupal_add_js(drupal_get_path('module', 'share_widget') .'/js/share_widget_block.js');
+        $share_widget_js_block_added = TRUE;
+      }
+      break;
+    case 'link':
+      if ($share_widget_js_link_added === FALSE) {
+        drupal_add_js(drupal_get_path('module', 'share_widget') .'/js/share_widget_link.js');
+        $share_widget_js_link_added = TRUE;
+      }
+      break;
+  }
+}
+
+function share_widget_add_css($type = 'node') {
+  static $share_widget_css_added = FALSE;
+  static $share_widget_block_css_added = FALSE;
+
+  switch ($type) {
+    case 'block':
+      if ($share_widget_block_css_added == FALSE) {
+        drupal_add_css(drupal_get_path('module', 'share_widget') .'/css/share_widget_block.css');
+        $share_widget_block_css_added = TRUE;
+      }
+      break;
+    case 'link':
+    case 'node':
+      if ($share_widget_css_added == FALSE) {
+        drupal_add_css(drupal_get_path('module', 'share_widget') .'/css/share_widget.css');
+        $share_widget_css_added = TRUE;
+      }
+      break;
+  }
+}
+
+function share_widget_default_tabs() {
+  $tabs = array();
+  foreach (module_implements('share_tab') as $module) {
+    $info = module_invoke($module, 'share_info');
+    if (isset($info['tab']) && !empty($info['tab'])) {
+      $tabs[$module] = $info['tab'];
+    }
+  }
+
+  // Sort tabs by weight and then by title.
+  uasort($tabs, 'share_widget_tab_sort');
+
+  return $tabs;
+}
+
+function share_widget_tab_sort($a, $b) {
+  if ($a['weight'] == $b['weight']) {
+    // Convert to lowercase to ensure consistent behaviour
+    $a_title = strtolower($a['title']);
+    $b_title = strtolower($b['title']);
+
+    if ($a_title == $b_title) {
+      return 0;
+    }
+
+    // Use sort() for simple alphabetical comparison
+    $sortable = array($a_title, $b_title);
+    $sorted = $sortable;
+    sort($sorted);   
+
+    // If the names have switched position, return -1. Otherwise, return 1.
+    return ($sorted[0] == $sortable[0]) ? -1 : 1;
+  }
+  return ($a['weight'] < $b['weight']) ? -1 : 1;
+}
+
+/*******************************************************************************
+ * Theme Functions
+ ******************************************************************************/
+
+function theme_share_widget($data) {
+  share_widget_add_js();
+  share_widget_add_css();
+
+  $output = '<div class="share-widget" style="display: none;">';
+  $output.= '<div class="share-header">'. l(t('Close'), '', array('attributes' => array('class' => 'share-close'))) . $data['tabs'] .'</div>';
+  $output.= '<div class="share-content">'. $data['content'] .'</div>';
+  $output.= '</div>';
+  return $output;
+}
+
+function theme_share_widget_tabs($tabs, $nid) {
+  $output = '<ul class="share-menu">';
+  foreach ($tabs as $value) {
+    if ($output == '<ul class="share-menu">') {
+      $output.= '<li class="share-'. $value['module'] .'-'. $nid .'"><a href="" class="share-tab-'. $value['module'] .' selected"><span>'. $value['name'] .'</span></a></li>';
+    } else {
+      $output.= '<li class="share-'. $value['module'] .'-'. $nid .'"><a href="" class="share-tab-'. $value['module'] .'"><span>'. $value['name'] .'</span></a></li>';
+    }
+  }
+  $output.= '</ul>';
+  return $output;
+}
+
+function theme_share_widget_content($content, $nid) {
+  $output = '';
+  foreach ($content as $value) {
+    if ($output == '') {
+      $output.= '<div class="share-'. $value['module'] .' share-'. $value['module'] .'-'. $nid .'">'. $value['content'] .'</div>';
+    } else {
+      $output.= '<div class="share-'. $value['module'] .' share-'. $value['module'] .'-'. $nid .'" style="display: none;">'. $value['content'] .'</div>';
+    }
+  }
+  return $output;
+}
+
+function theme_share_widget_block($tabs) {
+  share_widget_add_js('block');
+  share_widget_add_css('block');
+
+  $output = '<div class="share-block">';
+  $num = count($tabs);
+  $count = 1;
+  foreach ($tabs as $id => $tab) {
+    $class = 'share-block-tab';
+    if ($count == 1) $class .= ' share-block-tab-first';
+    if ($count == $num) $class .= ' share-block-tab-last';
+    $output .= '<div class="'. $class .'">';
+    $output .= '<h2>'. $tab['title'] .'</h2>';
+    $output .= '<div class="share-block-tab-content">'. $tab['content'] .'</div>';
+    $output .= '</div>';
+    $count++;
+  }
+  $output .= '</div>';
+  return $output;
+}
+
+function theme_share_widget_tabs_settings($form) {
+  drupal_add_js(drupal_get_path('module', 'share_widget') .'/js/share_widget_settings.js');
+  drupal_add_css(drupal_get_path('module', 'share_widget') .'/css/share_widget_settings.css');
+  drupal_add_tabledrag('tabs-table', 'order', 'sibling', 'tab-weight-select', NULL, NULL, FALSE);
+
+  $rows = array();
+  $headers = array(
+    array('data' => t('Tab')),
+    array('data' => t('Weight'), 'width' => '67px')
+  );
+
+  foreach (element_children($form) as $tab) {
+    $tab_name = '<div class="tab-enabled">'. drupal_render($form[$tab]['enabled']) .'</div><div class="tab-title">'. $form[$tab]['title']['#value'] .'</div>';
+    $tab_settings = '<div class="tab-settings" style="display: none;">'. drupal_render($form[$tab]['title']) . ((isset($form[$tab]['settings'])) ? drupal_render($form[$tab]['settings']) : '') .'</div>';
+    $tab_weight = '<div class="tab-weight">'. drupal_render($form[$tab]['weight']) .'</div>';
+    $tab_row = '<div id="'. str_replace('_', '-', $tab) .'-tab">'. $tab_name . $tab_settings .'</div>';
+
+    $row = array(
+      array('data' => $tab_row),
+      array('data' => $tab_weight)
+    );
+    $rows[] = array(
+      'data' => $row,
+      'class' => 'draggable'
+    );
+  }
+
+  $output = theme('table', $headers, $rows, array('id' => 'tabs-table'));
+  $output.= drupal_render($form);
+  return $output;
+}

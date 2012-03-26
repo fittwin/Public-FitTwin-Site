@@ -1,0 +1,484 @@
+/* Main site styles */
+body {
+	background-color:#cccccc;
+    color:#336699;
+}
+
+#forum a:active, #forum a:hover, #forum a:focus, #forum a:link {
+    color:#336699;
+    font: bold 18px/22px "lucida grande",tahoma,verdana,ariel,helvetica,sans-serif;
+    text-decoration: none;
+}
+
+#main-wrapper #main .title {
+    /*display:none;*/
+    padding:0 0 0 20px;
+}
+
+#main-wrapper #main {
+    background:#ffffff;
+    padding:20px 0;
+}
+
+#header {
+    padding:20px 0 0 0;
+}
+
+#header .section {
+    margin:0 auto;
+}
+
+#header-logo #logo img {
+    width:500px;
+    padding:20px 0 0 0;
+    margin:0 0 0 -50px;
+}
+
+#header #name-and-slogan {
+    color : #3270C5;
+    font-family : "lucida grande",tahoma,verdana,geneva,arial,helvetica,sans-serif;
+    font-size: 13px;
+    font-weight: bold;
+    text-align:center;
+    clear:both;
+}
+
+#block-uc_microcart-0 {
+    position:relative;
+    float:right;
+    top:-170px;
+    margin:0 30px 0 0;
+}
+
+#block-uc_microcart-0 .content a img {
+    padding:0 5px;
+}
+
+#block-uc_microcart-0 .content a {
+    text-decoration:none;
+    color:#336699;
+}
+
+#block-superfish-1 {
+    margin:0;
+}
+
+#block-superfish-2 {
+    margin:15px 0 0 0;
+}
+
+#block-userlogin-userlogin-login {
+    position:relative;
+    float:left;
+    top:-170px;
+    margin:0 0 0 30px;
+}
+
+#block-userlogin-userlogin-login .content {
+    color:#336699;
+}
+
+#block-userlogin-userlogin-login .content a{
+    text-decoration:none;
+    color:#336699;
+}
+
+#block-block-8 .content {
+    margin:0 20px;
+}
+
+#block-block-6 .content {
+    margin:0 65px;
+}
+
+#block-block-7 .title{
+ /*   margin-left:-210px;*/
+}
+
+#content-area #node-form .node-form .form-region-main {
+	margin:0 auto;
+	float:none;
+}
+
+#content-area {
+	margin:0 auto;
+	padding:0 20px 0;
+	background-color:#FFFFFF;
+}
+
+.messages {
+	clear:both;
+}
+
+.status {
+	clear:both;
+}
+
+/* View Styles */
+.view-facility-proximity-view .view-content .views-field-title .field-content a {
+    text-decoration:none;
+    color:#336699;
+    font:bold 18px/22px "lucida grande",tahoma,verdana,ariel,helvetica,sans-serif;
+}
+
+.view-facility-proximity-view .item-list ul {
+    list-style:none;
+}
+
+.view-facility-proximity-view .views-row {
+    min-width:550px;
+    float:left;
+    margin:15px;
+    padding:5px;
+    /* BACKGROUND IMAGES */
+    background: rgb(242,246,248); /* Old browsers */
+    background: -moz-linear-gradient(top,  rgba(242,246,248,1) 0%, rgba(216,225,231,1) 78%, rgba(181,198,208,1) 100%, rgba(224,239,249,1) 100%); /* FF3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(242,246,248,1)), color-stop(78%,rgba(216,225,231,1)), color-stop(100%,rgba(181,198,208,1)), color-stop(100%,rgba(224,239,249,1))); /* Chrome,Safari4+ */
+    background: -webkit-linear-gradient(top,  rgba(242,246,248,1) 0%,rgba(216,225,231,1) 78%,rgba(181,198,208,1) 100%,rgba(224,239,249,1) 100%); /* Chrome10+,Safari5.1+ */
+    background: -o-linear-gradient(top,  rgba(242,246,248,1) 0%,rgba(216,225,231,1) 78%,rgba(181,198,208,1) 100%,rgba(224,239,249,1) 100%); /* Opera 11.10+ */
+    background: -ms-linear-gradient(top,  rgba(242,246,248,1) 0%,rgba(216,225,231,1) 78%,rgba(181,198,208,1) 100%,rgba(224,239,249,1) 100%); /* IE10+ */
+    background: linear-gradient(top,  rgba(242,246,248,1) 0%,rgba(216,225,231,1) 78%,rgba(181,198,208,1) 100%,rgba(224,239,249,1) 100%); /* W3C */
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#f2f6f8', endColorstr='#e0eff9',GradientType=0 ); /* IE6-9 */
+    /* END BACKGROUND IMAGES */
+    /* Rounded Corner Styles */
+    border-radius: 15px; 
+    -moz-border-radius: 15px; 
+    -webkit-border-radius: 15px; 
+    border: 1px solid #B4D3E0;
+    /* Drop Shadow */
+    -webkit-box-shadow: 10px 10px 10px 1px ;
+    -moz-box-shadow: 10px 10px 10px 1px ;
+    box-shadow: 10px 10px 10px 1px ; 
+}
+
+.view-facility-proximity-view .views-field-address .views-label-address {
+    float:left;
+}
+
+.view-facility-proximity-view .views-field-title {
+    height:70px;
+}
+
+.view-facility-proximity-view .item-list ul .views-row .views-field-address,
+.view-facility-proximity-view .item-list ul .views-row .views-field-distance,
+.view-facility-proximity-view .item-list ul .views-row .views-field-field-activation-fee-value,
+.view-facility-proximity-view .item-list ul .views-row .views-field-field-activation-fee-waived-value
+{
+    display:block;
+    float:left;
+    margin:5px 5px 5px 5px;
+    font-weight:bold;
+}
+
+.view-facility-proximity-view .item-list ul .views-row .views-field-sell-price,
+.view-facility-proximity-view .item-list ul .views-row .views-field-list-price,
+.view-facility-proximity-view .item-list ul .views-row .views-field-buyitnowbutton {
+    display:block;
+    clear:both;
+    float:right;
+    margin:-20px 0 20px 0;
+
+}
+
+.view-facility-proximity-view .item-list ul .views-row .views-field-list-price {
+    color:red;
+    font-weight:bold;
+    font-size:12px;
+    text-decoration:line-through;
+}
+
+.view-facility-proximity-view .item-list ul .views-row .views-field-sell-price {
+    color:#000000;
+    font-weight:bold;
+    font-size:16px;
+}
+
+.view-facility-proximity-view .item-list ul .views-row .views-field-sell-price,
+.view-facility-proximity-view .item-list ul .views-row .views-field-list-price {
+    padding:0 50px 0 0;
+}
+
+/*
+*/
+.view-facility-proximity-view .views-field-field-image-cache-fid {
+    height:100px;
+    float:right;
+    margin:5px;
+}
+
+.view-facility-proximity-view .views-field-body {
+    display:block;
+    width:440px;
+}
+
+#views-exposed-form-facility-proximity-view-page-1 .form-item {
+    width:120px;
+    float:left;
+}
+
+#views-ajax-pad .views-override .form-submit, #views-ajax-pad .views-expose .form-submit {
+    float: right;
+    margin: 0 0 0 1em;
+}
+
+form#views-ui-preview-form input#preview-submit {
+    margin: 0 0 0 0;
+}
+
+.view-facility-proximity-view .views-exposed-widget .form-actions {
+    margin:60px 0 0 -130px;
+}
+
+#edit-distance-search-units {
+    margin:20px 0 0 0;
+}
+
+#edit-distance-postal-code {
+    width:100px;
+}
+
+#edit-distance-search-distance {
+    width:100px;
+}
+
+/* Cart Styles */
+#update-checkout-buttons {
+    float: right;
+    margin: 15px;
+}
+
+#cart-form-buttons .form-button, #cart-form-buttons .form-submit {
+    margin: 0em 0em 0em 0em;
+}
+
+#checkout-form-bottom .form-button, #checkout-form-bottom .form-submit {
+    margin: 0em 0em 0em 0em;
+}
+
+/* Coming Soon Page */
+#coming_soon {
+    text-align:center;
+}
+
+/* Forum Styles */
+#forum-0 thead th {
+    padding:0 25px;
+}
+/* Search Block Custom CSS */
+#block-search-0 {
+	text-align:center;
+}
+
+#edit-search-block-form-1 {
+	position:relative;
+	top:-25px;
+	height:20px;
+	width:300px;
+}
+
+/* Office Hours Custom CSS */
+.office-hours-day {
+	width:100px;
+	display:block;
+	float:left;
+}
+
+#field_facility_hours_values {
+	width:600px;
+}	
+
+#field_facility_hours_values .odd,
+#field_facility_hours_values .even {
+}	
+
+.oh-day {
+	width:100px;
+	display:inline-block;
+}
+
+.oh-display-hours {
+	width:50px;
+	padding:0 0 0 10px;
+	display:inline-block;
+}
+
+/* Form styles */
+.node-form .form-region-main .location {
+	width:580px;
+}
+
+.node-form .form-region-main #edit-title-wrapper .form-text {
+	width:590px;
+}
+
+.node-form .form-item .form-radios .form-item {
+    width:50px;
+}
+
+/* Search Form Styles 
+#edit-submit, #edit-submit-facility-proximity-view {
+    background:transparent url('/sites/all/themes/fittwin/images/bkg_button.png') no-repeat 0 0;
+}
+*/
+
+/* Facility Amenities */
+.group-facility-amenities .form-item {
+	width:180px;
+	float:left;
+	margin:.25em 0;
+}
+
+.group-facility-amenities {
+	width:580px;
+}
+
+/* Product Styles */
+.pane-home-page-deals .pane-title {
+	color:#095CB1;
+	margin:10px 0 10px 0;
+	padding:10px 0 10px 20px !important; /* panels_ipe.css gets in the way of this for the homepage */
+	background-color:#eeeeee;
+	width:75%;
+}
+
+.view-home-page-deals .views-view-grid tr td {
+	width:150px;
+	float:left;
+	padding:5px;
+	margin:5px;
+	border:#095CB1 solid 10px;
+	background-color:#ffffff;
+}
+
+.view-home-page-deals .views-field-field-image-cache-fid {
+	height:100px;
+	width:150px;
+	line-height:100px;
+	text-align:center;
+}
+
+.view-home-page-deals .views-field-field-image-cache-fid a img {
+	vertical-align:middle;
+}
+
+/* Superfish menu Styles */
+#superfish-1 {
+	position:relative;
+	left:35%;
+}
+
+#superfish-2 {
+	position:relative;
+	left:50%;
+}
+
+#block-superfish-1 .content {
+    position:absolute;
+    left:425px;
+}
+.sf-menu.sf-style-blue ul li {
+
+	width:100%;
+	left:0%;
+}
+
+/*
+.sf-menu.sf-style-blue li {
+	float:left;
+	position:relative;
+	left:-50%;
+}
+
+#superfish-2 {
+    float:left;
+    line-height:1;
+    position:relative;
+    z-index:99;
+    left:50%;
+}
+
+*/
+.region-footer {
+    height:100px;
+}
+/*li.active span, .sf-menu.sf-style-blue span:active {
+    background:#3270C5;
+    color:#ffffff;
+    text-decoration:none;
+}
+
+.sf-menu.sf-style-blue span {
+    border:1px outset #003973;
+    padding:0.75em 1em;
+    white-space:nowrap;
+}
+
+.sf-menu span {
+    display:block;
+    position:relative;
+}
+
+span.sf-with-ul {
+    padding-right:2.25em;
+    min-width:1px;
+}
+*/
+/*
+.form-button-wrapper, li.button a, a.button {
+    background-image:transparent url(/sites/all/themes/fittwin/images/bkg_button-right.png) no-repeat 0 0;
+}
+.form-button-wrapper input, li.button a span, a.button span {
+    background-image:transparent url(/sites/all/themes/fittwin/images/bkg_button.png) no-repeat 0 0;
+}
+*/
+/* Footer Styles */
+#footer-links {
+    background:white;
+    min-width:800px;
+    max-width:1000px;
+}
+
+#footer-message {
+    width: 760px;
+    padding: 20px;
+    margin:0 auto;
+    text-align:center;
+}
+
+/* Coming Soon Styles */
+#block-mailchimp-a44124ffe8 {
+    text-align:center;
+    margin-left:400px;
+}
+
+#edit-mailchimp-lists-a44124ffe8-EMAIL-wrapper {
+    float:left;
+}
+
+.front .form-actions {
+    float:left;
+    margin-top:2em;
+    margin-left:2em;
+}
+
+.front #facebook-image-link, .front #twitter-image-link {
+    float:left;
+    text-align:center;
+}
+
+.front #facebook-image-link {
+    margin:50px 40px 0 150px;
+}
+/* FRONT page styles */
+.front .title {
+    text-align:center;
+    margin:15px 0 0 0;
+}
+
+.form-submit, .form-button-wrapper {
+    /* Rounded Corner Styles */
+    border-radius: 8px;
+    -moz-border-radius: 8px;
+    -webkit-border-radius: 8px;
+    border: 1px solid #B4D3E0;
+}

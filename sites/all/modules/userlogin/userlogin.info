@@ -1,0 +1,5 @@
+name = User Login Block Module 
+description = A block module to display user login in the header region..
+core = 6.x
+engine = phptemplate
+

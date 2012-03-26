@@ -1,0 +1,18 @@
+/* $Id: share_widget_settings.css,v 1.1.2.1 2009/03/26 21:12:22 greenskin Exp $ */
+
+div.tab-title {
+  cursor: pointer;
+}
+div.tab-enabled {
+  float: left;
+  margin-right: 5px;
+}
+div.tab-title {
+  font-weight: bold;
+}
+div.tab-weight {
+  padding-right: 20px;
+}
+div.tab-settings {
+  clear: both;
+}

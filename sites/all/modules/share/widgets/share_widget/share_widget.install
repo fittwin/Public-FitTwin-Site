@@ -1,0 +1,93 @@
+<?php
+// $Id: share_widget.install,v 1.1.2.1 2009/03/26 21:12:22 greenskin Exp $
+
+/**
+ * Implementation of hook_schema().
+ */
+function share_widget_schema() {
+  $schema['share_widget'] = array(
+    'description' => t("Stores basic information for a 'share' Share widget type."),
+    'fields' => array(
+      'share_id' => array(
+        'description' => t('The Share widget this widget is attached to.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0
+      ),
+      'name' => array(
+        'description' => t('The name for the Share widget link.'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE
+      ),
+      'effects' => array(
+        'description' => t('To enable javascript effects for Share widget.'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 1,
+        'unsigned' => TRUE
+      )
+    ),
+    'indexes' => array(
+      'share_id' => array('share_id')
+    )
+  );
+  $schema['share_tabs'] = array(
+    'description' => t("Stores information about tabs for a 'share' Share widget type."),
+    'fields' => array(
+      'share_id' => array(
+        'description' => t('The Share widget this widget is attached to.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0
+      ),
+      'title' => array(
+        'description' => t('The title for the tab.'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE
+      ),
+      'enabled' => array(
+        'description' => t('If the tab is enabled or not.'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 1,
+        'size' => 'tiny',
+        'unsigned' => TRUE
+      ),
+      'weight' => array(
+        'description' => t('The weight of a tab.'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'module' => array(
+        'description' => t('The module that controls the output of the tab.'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE
+      )
+    ),
+    'indexes' => array(
+      'share_id' => array('share_id'),
+      'module' => array('module')
+    )
+  );
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function share_widget_install() {
+  drupal_install_schema('share_widget');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function share_widget_uninstall() {
+  drupal_uninstall_schema('share_widget');
+}

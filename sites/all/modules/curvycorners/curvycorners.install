@@ -1,0 +1,6 @@
+<?php
+  function curvycorners_uninstall() {
+    variable_del('curvycorners_all_pages');
+    variable_del('curvycorners_textarea');
+  }
+

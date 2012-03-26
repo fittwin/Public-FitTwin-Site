@@ -1,0 +1,12 @@
+name = Recurring Product Fees
+description = Add recurring fees for products.
+dependencies[] = uc_recurring
+package = Ubercart - recurring
+core = 6.x
+
+; Information added by drupal.org packaging script on January 1, 1970 - 00:00
+version = "6.x-2.0-alpha6"
+core = "6.x"
+project = "uc_recurring"
+datestamp = "1296268419"
+

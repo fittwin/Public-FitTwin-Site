@@ -1,0 +1,8 @@
+<?php
+function project_extras_form_alter(&$form, $form_state, $form_id) {
+    if ($form_state['view']->name == 'facility_proximity_view') {
+        $form['distance']['postal_code']['#value'] = $_COOKIE['user-zip'];
+    }
+
+}
+?>

@@ -1,0 +1,16 @@
+; $Id: currency_cck.info,v 1.1.4.3 2009/03/03 18:48:06 owahab Exp $
+name = "Currency CCK"
+description = "Defines a field type for currency."
+dependencies[] = currency_api
+dependencies[] = content
+dependencies[] = text
+dependencies[] = optionwidgets
+package = CCK
+core = 6.x
+
+; Information added by drupal.org packaging script on 2009-03-03
+version = "6.x-1.1"
+core = "6.x"
+project = "currency_cck"
+datestamp = "1236106514"
+

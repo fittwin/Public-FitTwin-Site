@@ -1,0 +1,5 @@
+$Id: CREDITS.txt,v 1.1 2010/10/11 15:21:53 trungonly Exp $ 
+
+Developer: Trungonly
+
+Mostly based on uc_attribute, uc_views_attribute modules.

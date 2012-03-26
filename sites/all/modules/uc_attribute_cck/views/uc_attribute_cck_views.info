@@ -1,0 +1,15 @@
+; $Id: uc_attribute_cck_views.info,v 1.1 2010/10/11 15:21:53 trungonly Exp $
+
+name = Ubercart CCK Attribute Views
+description = Makes Ubercart CCK Attribute data and filters available for Views.
+dependencies[] = uc_attribute_cck
+dependencies[] = uc_views
+package = "Ubercart - views"
+core = 6.x
+
+; Information added by drupal.org packaging script on January 1, 1970 - 00:00
+version = "6.x-1.6"
+core = "6.x"
+project = "uc_attribute_cck"
+datestamp = "1297080772"
+

@@ -1,0 +1,13 @@
+; $Id: checkall_example_user_permissions.info,v 1.1.2.1 2009/03/23 17:04:32 markuspetrux Exp $
+name = Checkall example for user permissions
+description = Example module for the checkall extension to Drupal checkboxes elements.
+package = User interface
+dependencies[] = checkall
+core = 6.x
+
+; Information added by drupal.org packaging script on 2009-12-27
+version = "6.x-2.4"
+core = "6.x"
+project = "checkall"
+datestamp = "1261947618"
+

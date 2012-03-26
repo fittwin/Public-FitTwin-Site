@@ -1,0 +1,5 @@
+name = Views Dynamic Filter 
+description = Module that allows you to add a dynamic view exposed filter from a cookie value.
+core = 6.x
+engine = phptemplate
+

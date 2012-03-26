@@ -1,0 +1,5 @@
+name = Project Extra Module  
+description = This module is a catchall to hold module functions needed for the site.
+core = 6.x
+engine = phptemplate
+

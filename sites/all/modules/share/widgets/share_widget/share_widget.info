@@ -1,0 +1,13 @@
+; $Id: share_widget.info,v 1.1.2.1 2009/03/26 21:12:22 greenskin Exp $
+name = Share widget
+description = "Provides a widget where modules can put their links/forms that are related to sharing."
+dependencies[] = share
+package = Share
+core = 6.x
+
+; Information added by drupal.org packaging script on 2009-03-26
+version = "6.x-2.0-alpha2"
+core = "6.x"
+project = "share"
+datestamp = "1238103172"
+

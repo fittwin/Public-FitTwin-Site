@@ -1,0 +1,27 @@
+// $Id: CHANGELOG.txt,v 1.4.2.2 2010/03/23 10:52:58 sun Exp $
+
+Button style x.x-x.x, xxxx-xx-xx
+--------------------------------
+
+
+Button style 6.x-1.x, xxxx-xx-xx
+--------------------------------
+
+
+Button style 6.x-1.1, 2010-03-23
+--------------------------------
+#581056 by kndr: Fixed broken markup on comment preview.
+by sun: Added CSS tweaks for Views UI and Views Bulk Operations.
+
+
+Button style 6.x-1.0, 2009-08-14
+--------------------------------
+by sun: Ported to Drupal 6.
+
+
+Button style 5.x-1.0, 2009-08-14
+--------------------------------
+by sun: Changed CSS to leverage inline-block.
+Initial commit of Button Style for Drupal 5, 2009-08-14.
+
+

@@ -1,0 +1,1514 @@
+diff --git uc_attribute/uc_attribute.module uc_attribute/uc_attribute.module
+index cf2bf33..db918f3 100644
+--- uc_attribute/uc_attribute.module
++++ uc_attribute/uc_attribute.module
+@@ -538,72 +538,524 @@ function uc_attribute_product_description($product) {
+  ******************************************************************************/
+ 
+ /**
+- * Load an attribute from the database.
++ * Load attribute objects from the database.
+  *
+- * @param $attr_id
+- *   The id of the attribute.
+- * @param $nid
+- *   If given, the attribute will have the options that have been assigned to
+- *   that $type for the attribute.
++ * @todo If we feel it necessary, we could optimize this, by inverting the
++ *  logic; that is, we could make uc_attribute load call this function and allow
++ *  this function to minimize the number of queries necessary. -cha0s
++ *
++ * @param $aids
++ *   Attribute IDs to load.
+  * @param $type
+- *   Determines whether $nid refers to a node or product class. $nid is ignored
+- *   if $type is not 'product' or 'class'.
+- * @return
+- *   An attribute object with its options.
+- */
+-function uc_attribute_load($attr_id, $nid = NULL, $type = '') {
+-  if ($nid) {
+-    switch ($type) {
+-      case 'product':
+-        $attribute = db_fetch_object(db_query("SELECT a.aid, a.name, a.label AS default_label, a.ordering AS default_ordering, a.required AS default_required, a.display AS default_display, a.description, pa.label, pa.default_option, pa.required, pa.ordering, pa.display FROM {uc_attributes} AS a LEFT JOIN {uc_product_attributes} AS pa ON a.aid = pa.aid AND pa.nid = %d WHERE a.aid = %d", $nid, $attr_id));
+-        $result = db_query("SELECT po.nid, po.oid, po.cost, po.price, po.weight, po.ordering, ao.name, ao.aid FROM {uc_product_options} AS po LEFT JOIN {uc_attribute_options} AS ao ON po.oid = ao.oid AND nid = %d WHERE aid = %d ORDER BY po.ordering, ao.name", $nid, $attr_id);
+-        break;
+-      case 'class':
+-        $attribute = db_fetch_object(db_query("SELECT a.aid, a.name, a.label AS default_label, a.ordering AS default_ordering, a.required AS default_required, a.display AS default_display, a.description, ca.default_option, ca.label, ca.required, ca.ordering, ca.display FROM {uc_attributes} AS a LEFT JOIN {uc_class_attributes} AS ca ON a.aid = ca.aid AND ca.pcid = '%s' WHERE a.aid = %d", $nid, $attr_id));
+-        $result = db_query("SELECT co.pcid, co.oid, co.cost, co.price, co.weight, co.ordering, ao.name, ao.aid FROM {uc_class_attribute_options} AS co LEFT JOIN {uc_attribute_options} AS ao ON co.oid = ao.oid AND co.pcid = '%s' WHERE ao.aid = %d ORDER BY co.ordering, ao.name", $nid, $attr_id);
+-        break;
+-      default:
+-        $attribute = db_fetch_object(db_query("SELECT * FROM {uc_attributes} WHERE aid = %d", $attr_id));
+-        $result = db_query("SELECT * FROM {uc_attribute_options} WHERE aid = %d ORDER BY ordering, name, label", $attr_id);
+-        break;
+-    }
+-    if (isset($attribute->default_ordering) && is_null($attribute->ordering)) {
+-      $attribute->ordering = $attribute->default_ordering;
+-    }
+-    if (isset($attribute->default_required) && is_null($attribute->required)) {
+-      $attribute->required = $attribute->default_required;
+-    }
+-    if (isset($attribute->default_display) && is_null($attribute->display)) {
+-      $attribute->display = $attribute->default_display;
+-    }
+-    if (isset($attribute->default_label) && is_null($attribute->label)) {
+-      $attribute->label = $attribute->default_label;
+-    }
+-    if (empty($attribute->label)) {
+-      $attribute->label = $attribute->name;
+-    }
++ *   The type of attribute. 'product', or 'class'. Any other type will fetch
++ *   a base attribute
++ * @param $id
++ *   The ID of the product/class this attribute belongs to.
++ * @return (array)
++ *   The array of loaded attributes.
++ */
++function uc_attribute_load_multiple($aids = array(), $type = '', $id = NULL) {
++  $sql = uc_attribute_type_info($type);
++  $conditions = array();
++
++  // Filter by the attribute IDs requested.
++  if (!empty($aids)) {
++    // Sanity check - filter out non-numeric attribute IDs.
++    $conditions[] = "ua.aid IN (". implode(", ", array_filter($aids, 'is_numeric')) .")";
+   }
++
++  // Product/class attributes.
++  if (!empty($type)) {
++    $conditions[] = "uca.{$sql['id']} = {$sql['placeholder']}";
++    $conditions = implode(" AND", $conditions);
++    // Seems like a big query to get attribute IDs, but it's all about the sort.
++    // (I'm not sure if the default ordering is propagating down correctly here.
++    // It appears that product/class attributes with no ordering won't let the
++    // attribute's propagate down, as it does when loading. -cha0s)
++    $result = db_query("
++      SELECT    uca.aid
++      FROM      {$sql['attr_table']} AS uca
++      LEFT JOIN {uc_attributes} AS ua ON uca.aid = ua.aid
++      WHERE     $conditions
++      ORDER BY  uca.ordering, ua.name", $id);
++  }
++
++  // Base attributes.
+   else {
+-    $attribute = db_fetch_object(db_query("SELECT * FROM {uc_attributes} WHERE aid = %d", $attr_id));
+-    $result = db_query("SELECT * FROM {uc_attribute_options} WHERE aid = %d ORDER BY ordering, name", $attr_id);
++    // Padding just to make sure that everything's fine if we don't get an aid
++    // condition. Keeps it elegant.
++    $conditions[] = "1";
++    $conditions = implode(" AND ", $conditions);
++
++    $result = db_query("SELECT aid FROM {uc_attributes} ua WHERE $conditions ORDER BY ordering, name");
++  }
++
++  // Load the attributes.
++  $attributes = array();
++  while ($aid = db_result($result)) {
++    $attributes[$aid] = uc_attribute_load($aid, $id, $type);
++  }
++
++  return $attributes;
++}
++
++/**
++ * Load an attribute from the database.
++ *
++ * @param $aid
++ *   The ID of the attribute.
++ * @param $type
++ *   The type of attribute. 'product', or 'class'. Any other type will fetch
++ *   a base attribute
++ * @param $id
++ *   The ID of the product/class this attribute belongs to.
++ * @return
++ *   The attribute object, or FALSE if it doesn't exist.
++ */
++function uc_attribute_load($aid, $id = NULL, $type = '') {
++  $sql = uc_attribute_type_info($type);
++
++  switch ($type) {
++    case 'product':
++    case 'class':
++
++      // Read attribute data.
++      $attribute = db_fetch_object(db_query("
++        SELECT    a.aid, a.name, a.label AS default_label, a.ordering AS default_ordering,
++                  a.required AS default_required, a.display AS default_display,
++                  a.description, pa.label, pa.default_option, pa.required, pa.ordering,
++                  pa.display, pa.{$sql['id']}
++        FROM      {uc_attributes} AS a
++        LEFT JOIN {$sql['attr_table']} AS pa ON a.aid = pa.aid AND
++                  pa.{$sql['id']} = {$sql['placeholder']}
++        WHERE a.aid = %d", $id, $aid));
++
++      // Don't try to build it further if it failed already.
++      if (!$attribute) return FALSE;
++
++      // Set any missing defaults.
++      foreach (array('ordering', 'required', 'display', 'label') as $field) {
++        if (isset($attribute->{"default_$field"}) && is_null($attribute->$field)) {
++          $attribute->$field = $attribute->{"default_$field"};
++        }
++      }
++      if (empty($attribute->label)) {
++        $attribute->label = $attribute->name;
++      }
++
++      // Read option data.
++      $result = db_query("
++        SELECT    po.{$sql['id']}, po.oid, po.cost, po.price, po.weight, po.ordering, ao.name,
++                  ao.aid
++        FROM      {$sql['opt_table']} AS po
++        LEFT JOIN {uc_attribute_options} AS ao ON po.oid = ao.oid AND
++                  po.{$sql['id']} = {$sql['placeholder']}
++        WHERE     aid = %d ORDER BY po.ordering, ao.name", $id, $aid);
++
++    break;
++
++    default:
++
++      // Read attribute and option data.
++      $attribute = db_fetch_object(db_query("SELECT * FROM {uc_attributes} WHERE aid = %d", $aid));
++      $result = db_query("SELECT * FROM {uc_attribute_options} WHERE aid = %d ORDER BY ordering, name", $aid);
++
++      // Don't try to build it further if it failed already.
++      if (!$attribute) return FALSE;
++
++    break;
+   }
++
++  // Got an attribute?
+   if ($attribute) {
++    // Get its options, too.
+     $attribute->options = array();
+     while ($option = db_fetch_object($result)) {
+       $attribute->options[$option->oid] = $option;
+     }
+   }
++
+   return $attribute;
+ }
+ 
+ /**
+- * Load the option identified by $oid.
++ * Fetch an array of attribute objects from the database who belong to a product.
++ *
++ * @param $nid
++ *   Product whose attributes to load.
++ * @return (array)
++ *   The array of attribute objects.
++ */
++function uc_attribute_load_product_attributes($nid) {
++  return uc_attribute_load_multiple(array(), 'product', $nid);
++}
++
++/**
++ * Save an attribute object to the database.
++ *
++ * @param $attribute
++ *   The attribute object to save.
++ * @return (integer)
++ *   Return the result from drupal_write_record().
++ */
++function uc_attribute_save(&$attribute) {
++  // Insert or update?
++  $key = empty($attribute->aid) ? NULL : 'aid';
++  return drupal_write_record('uc_attributes', $attribute, $key);
++}
++
++/**
++ * Delete an attribute from the database.
++ *
++ * @param $aid
++ *   Attribute ID to delete.
++ * @return (integer)
++ *   Return the Drupal SAVED_DELETED flag.
++ */
++function uc_attribute_delete($aid) {
++  // Delete the class attributes and their options.
++  uc_attribute_subject_delete($aid, 'class');
++
++  // Delete the product attributes and their options.
++  uc_attribute_subject_delete($aid, 'product');
++
++  // Delete base attributes and their options.
++  db_query("DELETE FROM {uc_attribute_options} WHERE aid = %d", $aid);
++  db_query("DELETE FROM {uc_attributes} WHERE aid = %d", $aid);
++
++  return SAVED_DELETED;
++}
++
++/**
++ * Load an attribute option from the database.
++ *
++ * @param $oid
++ *   Option ID to load.
++ * @return (object)
++ *   The attribute option object.
+  */
+ function uc_attribute_option_load($oid) {
+   return db_fetch_object(db_query("SELECT * FROM {uc_attribute_options} WHERE oid = %d", $oid));
+ }
+ 
+ /**
++ * Save an attribute object to the database.
++ *
++ * @param $option
++ *   The attribute option object to save.
++ * @return (integer)
++ *   Return the result from drupal_write_record().
++ */
++function uc_attribute_option_save(&$option) {
++  // Insert or update?
++  $key = empty($option->oid) ? NULL : 'oid';
++  return drupal_write_record('uc_attribute_options', $option, $key);
++}
++
++/**
++ * Delete an attribute option from the database.
++ *
++ * @param $oid
++ *   Option ID to delete.
++ * @return (integer)
++ *   Return the Drupal SAVED_DELETED flag.
++ */
++function uc_attribute_option_delete($oid) {
++  // Delete the class attribute options.
++  uc_attribute_subject_option_delete($oid, 'class');
++
++  // Delete the product attribute options. (and the adjustments!)
++  uc_attribute_subject_option_delete($oid, 'product');
++
++  // Delete base attributes and their options.
++  db_query("DELETE FROM {uc_attribute_options} WHERE oid = %d", $oid);
++
++  return SAVED_DELETED;
++}
++
++/**
++ * Save a product/class attribute.
++ *
++ * @param &$attribute
++ *   The product/class attribute.
++ * @param $type
++ *   Is this a product or a class?
++ * @param $id
++ *   The product/class ID.
++ * @param $save_options
++ *   Save the product/class attribute's options, too?
++ * @return (integer)
++ *   Return the result from drupal_write_record().
++ */
++function uc_attribute_subject_save(&$attribute, $type, $id, $save_options = FALSE) {
++  $sql = uc_attribute_type_info($type);
++
++  // Insert or update?
++  $key = uc_attribute_subject_exists($attribute->aid, $type, $id) ? array('aid', $sql['id']) : NULL;
++
++  // First, save the options. First because if this is an insert, we'll set
++  // a default option for the product/class attribute.
++  if ($save_options && is_array($attribute->options)) {
++    foreach ($attribute->options as $option) {
++      // Sanity check!
++      $option = (object) $option;
++      uc_attribute_subject_option_save($option, $type, $id);
++    }
++
++    // Is this an insert? If so, we'll set the default option.
++    if (empty($key)) {
++      $default_option = 0;
++      // Make the first option (if any) the default.
++      if (is_array($attribute->options)) {
++        $option = (object) reset($attribute->options);
++        $default_option = $option->oid;
++      }
++      $attribute->default_option = $default_option;
++    }
++  }
++
++  // Merge in the product/class attribute's ID and save.
++  $attribute->{$type == 'product' ? 'nid' : 'pcid'} = $id;
++  $result = drupal_write_record(trim($sql['attr_table'], '{}'), $attribute, $key);
++
++  return $result;
++}
++
++/**
++ * Delete all the options associated with this product/class attribute, and
++ * then the attribute itself.
++ *
++ * @param $aid
++ *   The base attribute ID.
++ * @param $type
++ *   Is this a product or a class?
++ * @param $id
++ *   The product/class ID.
++ * @return (integer)
++ *   Return the Drupal SAVED_DELETED flag.
++ */
++function uc_attribute_subject_delete($aid, $type, $id = NULL) {
++  $sql = uc_attribute_type_info($type);
++
++  // Base conditions, and an ID check if necessary.
++  $conditions[] = "aid = %d";
++  if ($id) {
++    $conditions[] = "{$sql['id']} = {$sql['placeholder']}";
++  }
++  $conditions = implode(" AND ", $conditions);
++
++  $result = db_query("SELECT a.oid FROM {uc_attribute_options} AS a JOIN {$sql['opt_table']} AS subject ON a.oid = subject.oid WHERE $conditions", $aid, $id);
++  while ($oid = db_result($result)) {
++    // Don't delete the adjustments one at a time. We'll do it in bulk soon for
++    // efficiency.
++    uc_attribute_subject_option_delete($oid, $type, $id, FALSE);
++  }
++  db_query("DELETE FROM {$sql['attr_table']} WHERE $conditions", $aid, $id);
++
++  // If this is a product attribute, wipe any associated adjustments.
++  if ($type == 'product') {
++    uc_attribute_adjustments_delete(array(
++      'aid' => $aid,
++      'nid' => $id,
++    ));
++  }
++
++  return SAVED_DELETED;
++}
++
++/**
++ * Load a product/class attribute option.
++ *
++ * @param $oid
++ *   The product/class attribute option ID.
++ * @param $type
++ *   Is this a product or a class?
++ * @param $id
++ *   The product/class ID.
++ * @return (object)
++ *   Return the product/class attribute option.
++ */
++function uc_attribute_subject_option_load($oid, $type, $id) {
++  $sql = uc_attribute_type_info($type);
++
++  $result = db_query("
++    SELECT    po.{$sql['id']}, po.oid, po.cost, po.price, po.weight, po.ordering, ao.name,
++              ao.aid
++    FROM      {$sql['opt_table']} AS po
++    LEFT JOIN {uc_attribute_options} AS ao ON po.oid = ao.oid AND
++              po.{$sql['id']} = {$sql['placeholder']}
++    WHERE     po.oid = %d ORDER BY po.ordering, ao.name", $id, $oid);
++
++  return db_fetch_object($result);
++}
++
++/**
++ * Save a product/class attribute option.
++ *
++ /
++ * @param &$option
++ *   The product/class attribute option.
++ * @param $type
++ *   Is this a product or a class?
++ * @param $id
++ *   The product/class ID.
++ * @return (integer)
++ *   Return the result from drupal_write_record().
++ */
++function uc_attribute_subject_option_save(&$option, $type, $id) {
++  $sql = uc_attribute_type_info($type);
++
++  // Insert or update?
++  $key = uc_attribute_subject_option_exists($option->oid, $type, $id) ? array('oid', $sql['id']) : NULL;
++
++  // Merge in the product/class attribute option's ID, and save.
++  $option->{$type == 'product' ? 'nid' : 'pcid'} = $id;
++  $result = drupal_write_record(trim($sql['opt_table'], '{}'), $option, $key);
++
++  return $result;
++}
++
++/**
++ * Delete a product/class attribute option.
++ *
++ * @param $oid
++ *   The base attribute's option ID.
++ * @param $type
++ *   Is this a product or a class?
++ * @param $id
++ *   The product/class ID.
++ * @return (integer)
++ *   Return the Drupal SAVED_DELETED flag.
++ */
++function uc_attribute_subject_option_delete($oid, $type, $id = NULL, $adjustments = TRUE) {
++  $sql = uc_attribute_type_info($type);
++
++  // Base conditions, and an ID check if necessary.
++  $conditions[] = "oid = %d";
++  if ($id) {
++    $conditions[] = "{$sql['id']} = {$sql['placeholder']}";
++  }
++  $conditions = implode(" AND ", $conditions);
++
++  // Delete the option.
++  db_query("DELETE FROM {$sql['opt_table']} WHERE $conditions", $oid, $id);
++
++  // If this is a product, clean up the associated adjustments.
++  if ($adjustments && $type == 'product') {
++    uc_attribute_adjustments_delete(array(
++      'aid' => uc_attribute_option_load($oid)->aid,
++      'oid' => $oid,
++      'nid' => $id,
++    ));
++  }
++
++  return SAVED_DELETED;
++}
++
++/**
++ * @param $fields
++ *   Fields used to build a condition to delete adjustments against. Fields
++ *   currently handled are 'aid', 'oid', and 'nid'.
++ * @return (integer)
++ *   Return the Drupal SAVED_DELETED flag.
++ */
++function uc_attribute_adjustments_delete($fields) {
++
++  // Build the serialized string to match against adjustments.
++  $match = '';
++  if (!empty($fields['aid'])) {
++    $match .= serialize((integer) $fields['aid']);
++  }
++  if (!empty($fields['oid'])) {
++    $match .= serialize((string) $fields['oid']);
++  }
++
++  // Assemble the conditions and args for the SQL.
++  $args = $conditions = array();
++
++  // If we have to match aid or oid...
++  if ($match) {
++    $conditions[] = "combination LIKE '%%%s%%'";
++    $args[] = $match;
++  }
++
++  // If we've got a node ID to match.
++  if (!empty($fields['nid'])) {
++    $conditions[] = "nid = %d";
++    $args[] = $fields['nid'];
++  }
++  $conditions = implode(" AND ", $conditions);
++
++  // Delete what's necessary,
++  if ($conditions) {
++    db_query("DELETE FROM {uc_product_adjustments} WHERE $conditions", $args);
++  }
++
++  return SAVED_DELETED;
++}
++
++/**
++ * Check if a product/class attribute exists.
++ *
++ * @param $aid
++ *   The base attribute ID.
++ * @param $id
++ *   The product/class attribute's ID.
++ * @param $type
++ *   Is this a product or a class?
++ * @return (bool)
++ */
++function uc_attribute_subject_exists($aid, $type, $id) {
++  $sql = uc_attribute_type_info($type);
++  return FALSE !== db_result(db_query("SELECT aid FROM {$sql['attr_table']} WHERE aid = %d AND {$sql['id']} = {$sql['placeholder']}", $aid, $id));
++}
++
++/**
++ * Check if a product/class attribute option exists.
++ *
++ * @param $oid
++ *   The base attribute option ID.
++ * @param $id
++ *   The product/class attribute option's ID.
++ * @param $type
++ *   Is this a product or a class?
++ * @return (bool)
++ */
++function uc_attribute_subject_option_exists($oid, $type, $id) {
++  $sql = uc_attribute_type_info($type);
++  return FALSE !== db_result(db_query("SELECT oid FROM {$sql['opt_table']} WHERE oid = %d AND {$sql['id']} = {$sql['placeholder']}", $oid, $id));
++}
++
++/**
++ * Return a list of db helpers to abstract the queries between products/classes.
++ * @param $type
++ *   Is this a product or a class?
++ * @return (array)
++ *   Information helpful for creating SQL queries dealing with attributes.
++ */
++function uc_attribute_type_info($type) {
++  switch ($type) {
++    case 'product':
++      return array(
++        'attr_table' => '{uc_product_attributes}',
++        'opt_table' => '{uc_product_options}',
++        'id' => 'nid',
++        'placeholder' => '%d',
++      );
++    break;
++
++    case 'class':
++      return array(
++        'attr_table' => '{uc_class_attributes}',
++        'opt_table' => '{uc_class_attribute_options}',
++        'id' => 'pcid',
++        'placeholder' => "'%s'",
++      );
++    break;
++  }
++}
++
++/**
+  * Load all attributes associated with a product node.
+  */
+ function uc_product_get_attributes($nid) {
+diff --git uc_attribute/uc_attribute.test uc_attribute/uc_attribute.test
+new file mode 100644
+index 0000000..60565bf
+--- /dev/null
++++ uc_attribute/uc_attribute.test
+@@ -0,0 +1,688 @@
++<?php
++// $Id: ubercart_api.patch,v 1.1.2.1 2010/10/22 16:49:16 univate Exp $
++
++/**
++ * @file
++ * Ubercart Attribute Tests
++ */
++
++class UbercartAttributeTestCase extends DrupalWebTestCase {
++
++  function getInfo() {
++    return array(
++      'name' => t('Attribute API'),
++      'description' => t('Test the attribute API.'),
++      'group' => t('Ubercart'),
++    );
++  }
++
++  function setUp() {
++    parent::setUp('token', 'uc_store', 'uc_product', 'uc_attribute', 'ca', 'uc_order', 'uc_cart');
++
++    $admin_user = $this->drupalCreateUser(array('administer store', 'administer attributes', 'administer products', 'administer product classes'));
++    $this->drupalLogin($admin_user);
++  }
++
++  public function testAttributeAPI() {
++
++    // Create an attribute.
++    $attribute = self::createAttribute();
++
++    // Test retrieval.
++    $loaded_attribute = uc_attribute_load($attribute->aid);
++
++    // Check the attribute integrity.
++    foreach (self::_attributeFieldsToTest() as $field) {
++      if ($loaded_attribute->$field != $attribute->$field) {
++        $this->fail(t('Attribute integrity check failed.'), t('Ubercart'));
++        break;
++      }
++    }
++
++    // Add a product.
++    $product = UbercartProductTestCase::createProduct();
++
++    // Attach the attribute to a product.
++    uc_attribute_subject_save($attribute, 'product', $product->nid);
++
++    // Confirm the database is correct.
++    $this->assertEqual(
++      $attribute->aid,
++      db_result(db_query("SELECT aid FROM {uc_product_attributes} WHERE nid = %d", $product->nid)),
++      t('Attribute was attached to a product properly.'),
++      t('Ubercart')
++    );
++    $this->assertTrue(uc_attribute_subject_exists($attribute->aid, 'product', $product->nid));
++
++    // Test retrieval.
++    $loaded_attribute = uc_attribute_load($attribute->aid, 'product', $product->nid);
++
++    // Check the attribute integrity.
++    foreach (self::_attributeFieldsToTest('product') as $field) {
++      if ($loaded_attribute->$field != $attribute->$field) {
++        $this->fail(t('Attribute integrity check failed.'), t('Ubercart'));
++        break;
++      }
++    }
++
++    // Delete it.
++    uc_attribute_subject_delete($attribute->aid, 'product', $product->nid);
++
++    // Confirm again.
++    $this->assertFalse(
++      db_result(db_query("SELECT aid FROM {uc_product_attributes} WHERE nid = %d", $product->nid)),
++      t('Attribute was detached from a product properly.'),
++      t('Ubercart')
++    );
++    $this->assertFalse(uc_attribute_subject_exists($attribute->aid, 'product', $product->nid));
++
++    // Add a product class.
++    $product_class = UbercartProductTestCase::createProductClass();
++
++    // Attach the attribute to a product class.
++    uc_attribute_subject_save($attribute, 'class', $product_class->pcid);
++
++    // Confirm the database is correct.
++    $this->assertEqual(
++      $attribute->aid,
++      db_result(db_query("SELECT aid FROM {uc_class_attributes} WHERE pcid = '%s'", $product_class->pcid)),
++      t('Attribute was attached to a product class properly.'),
++      t('Ubercart')
++    );
++    $this->assertTrue(uc_attribute_subject_exists($attribute->aid, 'class', $product_class->pcid));
++
++    // Test retrieval.
++    $loaded_attribute = uc_attribute_load($attribute->aid, 'class', $product_class->pcid);
++
++    // Check the attribute integrity.
++    foreach (self::_attributeFieldsToTest('class') as $field) {
++      if ($loaded_attribute->$field != $attribute->$field) {
++        $this->fail(t('Attribute integrity check failed.'), t('Ubercart'));
++        break;
++      }
++    }
++
++    // Delete it.
++    uc_attribute_subject_delete($attribute->aid, 'class', $product_class->pcid);
++
++    // Confirm again.
++    $this->assertFalse(
++      db_result(db_query("SELECT aid FROM {uc_class_attributes} WHERE pcid = '%s'", $product_class->pcid)),
++      t('Attribute was detached from a product class properly.'),
++      t('Ubercart')
++    );
++    $this->assertFalse(uc_attribute_subject_exists($attribute->aid, 'class', $product_class->pcid));
++
++    // Create a few more.
++    for ($i = 0; $i < 5; $i++) {
++      $a = self::createAttribute();
++      $attributes[$a->aid] = $a;
++    }
++
++    // Add some options, organizing them by aid and oid.
++    $attribute_aids = array_keys($attributes);
++
++    $all_options = array();
++    foreach ($attribute_aids as $aid) {
++      for ($i = 0; $i < 3; $i++) {
++        $option = self::createAttributeOption(array('aid' => $aid));
++        $all_options[$option->aid][$option->oid] = $option;
++      }
++    }
++    for ($i = 0; $i < 3; $i++) {
++      $option = self::createAttributeOption(array('aid' => $attribute->aid));
++      $all_options[$option->aid][$option->oid] = $option;
++    }
++
++    // Get the options.
++    $attribute = uc_attribute_load($attribute->aid);
++
++    // Load every attribute we got.
++    $attributes_with_options = uc_attribute_load_multiple();
++
++    // Make sure all the new options are on attributes correctly.
++    foreach ($all_options as $aid => $options) {
++      foreach ($options as $oid => $option) {
++        foreach (self::_attributeOptionFieldsToTest() as $field) {
++          if ($option->$field != $attributes_with_options[$aid]->options[$oid]->$field) {
++            $this->fail(t('Option integrity check failed.'), t('Ubercart'));
++            break;
++          }
++        }
++      }
++    }
++
++    // Pick 5 keys to check at random.
++    $aids = drupal_map_assoc(array_rand($attributes, 3));
++
++    // Load the attributes back.
++    $loaded_attributes = uc_attribute_load_multiple($aids);
++
++    // Make sure we only got the attributes we asked for. No more, no less.
++    $this->assertEqual(count($aids), count($loaded_attributes), t('Verifying attribute result.'), t('Ubercart'));
++    $this->assertEqual(count($aids), count(array_intersect_key($aids, $loaded_attributes)), t('Verifying attribute result.'), t('Ubercart'));
++
++    // Check the attributes' integrity.
++    foreach ($loaded_attributes as $aid => $loaded_attribute) {
++      foreach (self::_attributeFieldsToTest() as $field) {
++        if ($attributes[$aid]->$field != $loaded_attributes[$aid]->$field) {
++          $this->fail(t('Attribute integrity check failed.'), t('Ubercart'));
++          break;
++        }
++      }
++    }
++
++    // Add the selected attributes to the product.
++    foreach ($loaded_attributes as $loaded_attribute) {
++      uc_attribute_subject_save($loaded_attribute, 'product', $product->nid, TRUE);
++    }
++
++    // Test loading all product attributes. (This covers uc_attribute_load_product_attributes(),
++    // as the semantics are the same -cha0s)
++    $loaded_product_attributes = uc_attribute_load_multiple(array(), 'product', $product->nid);
++
++    // We'll get all in $loaded_attributes above, plus the original.
++    $product_attributes = $loaded_attributes;
++
++    // Make sure we only got the attributes we asked for. No more, no less.
++    $this->assertEqual(count($loaded_product_attributes), count($product_attributes), t('Verifying attribute result.'), t('Ubercart'));
++    $this->assertEqual(count($loaded_product_attributes), count(array_intersect_key($loaded_product_attributes, $product_attributes)), t('Verifying attribute result.'), t('Ubercart'));
++
++    // Check the attributes' integrity.
++    foreach ($loaded_product_attributes as $aid => $loaded_product_attribute) {
++      foreach (self::_attributeFieldsToTest('product') as $field) {
++        if ($loaded_product_attributes[$aid]->$field != $product_attributes[$aid]->$field) {
++          $this->fail(t('Attribute integrity check failed.'), t('Ubercart'));
++          break;
++        }
++      }
++    }
++
++    // Make sure all the options are on attributes correctly.
++    foreach ($all_options as $aid => $options) {
++      foreach ($options as $oid => $option) {
++        if (empty($loaded_product_attributes[$aid]) || empty($loaded_product_attributes[$aid]->options[$oid])) continue;
++
++        foreach (self::_attributeOptionFieldsToTest() as $field) {
++          if ($option->$field != $loaded_product_attributes[$aid]->options[$oid]->$field) {
++            $this->fail(t('Option integrity check failed.'), t('Ubercart'));
++            break;
++          }
++        }
++      }
++    }
++
++    // Add the selected attributes to the product.
++    foreach ($loaded_attributes as $loaded_attribute) {
++      uc_attribute_subject_save($loaded_attribute, 'class', $product_class->pcid, TRUE);
++    }
++
++    // Test loading all product attributes. (This covers uc_attribute_load_product_attributes(),
++    // as the semantics are the same -cha0s)
++    $loaded_class_attributes = uc_attribute_load_multiple(array(), 'class', $product_class->pcid);
++
++    // We'll get all in $loaded_attributes above, plus the original.
++    $class_attributes = $loaded_attributes;
++
++    // Make sure we only got the attributes we asked for. No more, no less.
++    $this->assertEqual(count($loaded_class_attributes), count($class_attributes), t('Verifying attribute result.'), t('Ubercart'));
++    $this->assertEqual(count($loaded_class_attributes), count(array_intersect_key($loaded_class_attributes, $class_attributes)), t('Verifying attribute result.'), t('Ubercart'));
++
++    // Check the attributes' integrity.
++    foreach ($loaded_class_attributes as $aid => $loaded_class_attribute) {
++      foreach (self::_attributeFieldsToTest('class') as $field) {
++        if ($loaded_class_attributes[$aid]->$field != $class_attributes[$aid]->$field) {
++          $this->fail(t('Attribute integrity check failed.'), t('Ubercart'));
++          break;
++        }
++      }
++    }
++
++    // Make sure all the options are on attributes correctly.
++    foreach ($all_options as $aid => $options) {
++      foreach ($options as $oid => $option) {
++        if (empty($loaded_class_attributes[$aid]) || empty($loaded_class_attributes[$aid]->options[$oid])) continue;
++
++        foreach (self::_attributeOptionFieldsToTest() as $field) {
++          if ($option->$field != $loaded_class_attributes[$aid]->options[$oid]->$field) {
++            $this->fail(t('Option integrity check failed.'), t('Ubercart'));
++            break;
++          }
++        }
++      }
++    }
++
++    // Test deletion of base attribute.
++    $aid = $attribute->aid;
++    $options = $attribute->options;
++    uc_attribute_delete($attribute->aid);
++
++    $this->assertFalse(uc_attribute_load($attribute->aid), t('Attribute was deleted properly.'), t('Ubercart'));
++
++    // Sanity check!
++    $this->assertFalse(db_result(db_query("SELECT aid FROM {uc_attributes} WHERE aid = %d", $attribute->aid)), t('Attribute was seriously deleted properly!'), t('Ubercart'));
++
++    // Test that options were deleted properly.
++    foreach ($options as $option) {
++      $this->assertFalse(db_result(db_query("SELECT oid FROM {uc_attribute_options} WHERE oid = %d", $option->oid)), t('Make sure options are deleted properly.'), t('Ubercart'));
++    }
++
++    // Test the deletion applied to products too.
++    $loaded_product_attributes = uc_attribute_load_multiple(array(), 'product', $product->nid);
++
++    // We'll get all in $loaded_attributes above, without the original. (Which
++    // has been deleted.)
++    $product_attributes = $loaded_attributes;
++
++    // Make sure we only got the attributes we asked for. No more, no less.
++    $this->assertEqual(count($loaded_product_attributes), count($product_attributes), t('Verifying attribute result.'), t('Ubercart'));
++    $this->assertEqual(count($loaded_product_attributes), count(array_intersect_key($loaded_product_attributes, $product_attributes)), t('Verifying attribute result.'), t('Ubercart'));
++
++    // Test the deletion applied to classes too.
++    $loaded_class_attributes = uc_attribute_load_multiple(array(), 'class', $product_class->pcid);
++
++    // We'll get all in $loaded_attributes above, without the original. (Which
++    // has been deleted.)
++    $class_attributes = $loaded_attributes;
++
++    // Make sure we only got the attributes we asked for. No more, no less.
++    $this->assertEqual(count($loaded_class_attributes), count($class_attributes), t('Verifying attribute result.'), t('Ubercart'));
++    $this->assertEqual(count($loaded_class_attributes), count(array_intersect_key($loaded_class_attributes, $class_attributes)), t('Verifying attribute result.'), t('Ubercart'));
++
++    // Add some adjustments.
++    self::createProductAdjustment(array('combination' => 'a:1:{i:1;s:1:"1";}', 'nid' => 1));
++    self::createProductAdjustment(array('combination' => 'a:1:{i:1;s:1:"2";}', 'nid' => 1));
++    self::createProductAdjustment(array('combination' => 'a:1:{i:1;s:1:"3";}', 'nid' => 1));
++    self::createProductAdjustment(array('combination' => 'a:1:{i:2;s:1:"1";}', 'nid' => 2));
++    self::createProductAdjustment(array('combination' => 'a:1:{i:3;s:1:"1";}', 'nid' => 2));
++    self::createProductAdjustment(array('combination' => 'a:1:{i:1;s:1:"2";}', 'nid' => 3));
++    self::createProductAdjustment(array('combination' => 'a:1:{i:1;s:1:"3";}', 'nid' => 3));
++    self::createProductAdjustment(array('combination' => 'a:1:{i:3;s:1:"2";}', 'nid' => 3));
++    self::createProductAdjustment(array('combination' => 'a:1:{i:3;s:1:"3";}', 'nid' => 4));
++
++    // Test deletion by nid.
++    uc_attribute_adjustments_delete(array('nid' => 1));
++    $this->assertEqual(6, db_result(db_query("SELECT COUNT(*) FROM {uc_product_adjustments}")), t('Ubercart'));
++
++    // Test deletion by aid.
++    uc_attribute_adjustments_delete(array('aid' => 2));
++    $this->assertEqual(5, db_result(db_query("SELECT COUNT(*) FROM {uc_product_adjustments}")), t('Ubercart'));
++
++    // Test deletion by oid.
++    uc_attribute_adjustments_delete(array('oid' => 2));
++    $this->assertEqual(3, db_result(db_query("SELECT COUNT(*) FROM {uc_product_adjustments}")), t('Ubercart'));
++
++    // Test deletion by aid and oid.
++    uc_attribute_adjustments_delete(array('aid' => 1, 'oid' => 3));
++    $this->assertEqual(2, db_result(db_query("SELECT COUNT(*) FROM {uc_product_adjustments}")), t('Ubercart'));
++  }
++
++  public function testAttributeUIAddAttribute() {
++    $this->drupalGet('admin/store/attributes/add');
++
++    $this->AssertText(t('The name of the attribute used in administrative forms'), t('Attribute add form working.'), t('Ubercart'));
++
++    $edit = (array) self::createAttribute(array(), FALSE);
++
++    $this->drupalPost('admin/store/attributes/add', $edit, t('Submit'));
++
++    $this->assertRaw('<td class="active">'. $edit['name'] .'</td>', t('Verify name field.'), t('Ubercart'));
++    $this->assertRaw('<td>'. $edit['label'] .'</td>', t('Verify label field.'), t('Ubercart'));
++    $this->assertRaw('<td>'. $edit['required'] ? t('Yes') : t('No') .'</td>', t('Verify required field.'), t('Ubercart'));
++    $this->assertRaw('<td align="center">'. $edit['ordering'] .'</td>', t('Verify ordering field.'), t('Ubercart'));
++    $types = _uc_attribute_display_types();
++    $this->assertRaw('<td>'. $types[$edit['display']] .'</td>', t('Verify ordering field.'), t('Ubercart'));
++
++    $attribute = uc_attribute_load($edit['aid']);
++
++    $fields_ok = TRUE;
++    foreach ($edit as $field => $value) {
++      if ($attribute->$field != $value) {
++        $this->showVar($attribute);
++        $this->showVar($edit);
++        $fields_ok = FALSE;
++        break;
++      }
++    }
++  }
++
++  public function testAttributeUISettings() {
++    $product = UbercartProductTestCase::createProduct();
++    $attribute = self::createAttribute(array(
++      'display' => 1,
++    ));
++
++    $option = self::createAttributeOption(array(
++      'price' => 30,
++    ));
++
++    $attribute->options[$option->oid] = $option;
++    uc_attribute_subject_save($attribute, 'product', $product->nid, TRUE);
++
++    $context = array(
++      'revision' => 'formatted',
++      'location' => 'product-attribute-form-element',
++      'subject' => array('attribute' => $attribute),
++      'extras' => array('option' => $option),
++    );
++
++    $qty = $product->default_qty;
++    if (!$qty) {
++      $qty = 1;
++    }
++
++    $price_info = array(
++      'price' => $option->price,
++      'qty' => $qty,
++    );
++    $adjust_price = uc_price($price_info, $context);
++
++    $price_info['price'] += $product->sell_price;
++    $total_price = uc_price($price_info, $context);
++
++    $raw = array(
++      'none' => $option->name .'</option>',
++      'adjustment' => $option->name .', +'. $adjust_price .'</option>',
++      'total' => $total_price .'</option>',
++    );
++
++    foreach (array('none', 'adjustment', 'total') as $type) {
++      $edit['uc_attribute_option_price_format'] = $type;
++      $this->drupalPost('admin/store/settings/attributes', $edit, t('Save configuration'));
++
++      $this->drupalGet('node/'. $product->nid);
++      $this->AssertRaw($raw[$type], t('Attribute option pricing is correct.'), t('Ubercart'));
++    }
++  }
++
++  public function testAttributeUIEditAttribute() {
++    $attribute = self::createAttribute();
++
++    $this->drupalGet('admin/store/attributes/'. $attribute->aid .'/edit');
++
++    $this->AssertText(t('Edit attribute: @name', array('@name' => $attribute->name)), t('Attribute edit form working.'), t('Ubercart'));
++
++    $edit = (array) self::createAttribute(array(), FALSE);
++    $this->drupalPost('admin/store/attributes/'. $attribute->aid .'/edit', $edit, t('Submit'));
++
++    $attribute = uc_attribute_load($attribute->aid);
++
++    $fields_ok = TRUE;
++    foreach ($edit as $field => $value) {
++      if ($attribute->$field != $value) {
++        $this->showVar($attribute);
++        $this->showVar($edit);
++        $fields_ok = FALSE;
++        break;
++      }
++    }
++
++    $this->AssertTrue($fields_ok, t('Attribute edited properly.'), t('Ubercart'));
++  }
++
++  public function testAttributeUIDeleteAttribute() {
++    $attribute = self::createAttribute();
++
++    $this->drupalGet('admin/store/attributes/'. $attribute->aid .'/delete');
++
++    $this->AssertText(t('Are you sure you want to delete the attribute @name?', array('@name' => $attribute->name)), t('Attribute delete form working.'), t('Ubercart'));
++
++    $edit = (array) self::createAttribute();
++    unset($edit['aid']);
++
++    $this->drupalPost('admin/store/attributes/'. $attribute->aid .'/delete', array(), t('Delete'));
++
++    $this->AssertText(t('Product attribute deleted.'), t('Attribute deleted properly.'), t('Ubercart'));
++  }
++
++  public function testAttributeUIAttributeOptions() {
++    $attribute = self::createAttribute();
++    $option = self::createAttributeOption();
++
++    uc_attribute_option_save($option);
++
++    $this->drupalGet('admin/store/attributes/'. $attribute->aid .'/options');
++
++    $this->AssertText(t('Options for @name', array('@name' => $attribute->name)), t('Attribute options form working.'), t('Ubercart'));
++  }
++
++  public function testAttributeUIAttributeOptionsAdd() {
++    $attribute = self::createAttribute();
++
++    $this->drupalGet('admin/store/attributes/'. $attribute->aid .'/options/add');
++
++    $this->AssertText(t('Options for @name', array('@name' => $attribute->name)), t('Attribute options add form working.'), t('Ubercart'));
++
++    $edit = (array) self::createAttributeOption(array(), FALSE);
++    unset($edit['aid']);
++
++    $this->drupalPost('admin/store/attributes/'. $attribute->aid .'/options/add', $edit, t('Submit'));
++
++    $option = db_fetch_object(db_query("SELECT * FROM {uc_attribute_options} WHERE aid = %d", $attribute->aid));
++
++    $fields_ok = TRUE;
++    foreach ($edit as $field => $value) {
++      if ($option->$field != $value) {
++        $this->showVar($option);
++        $this->showVar($edit);
++        $fields_ok = FALSE;
++        break;
++      }
++    }
++
++    $this->assertTrue($fields_ok, t('Attribute option added successfully by form.'), t('Ubercart'));
++  }
++
++  public function testAttributeUIAttributeOptionsEdit() {
++    $attribute = self::createAttribute();
++    $option = self::createAttributeOption();
++
++    uc_attribute_option_save($option);
++
++    $this->drupalGet('admin/store/attributes/'. $attribute->aid .'/options/'. $option->oid .'/edit');
++
++    $this->AssertText(t('Edit option: @name', array('@name' => $option->name)), t('Attribute options edit form working.'), t('Ubercart'));
++
++    $edit = (array) self::createAttributeOption(array(), FALSE);
++    unset($edit['aid']);
++    $this->drupalPost('admin/store/attributes/'. $attribute->aid .'/options/'. $option->oid .'/edit', $edit, t('Submit'));
++
++    $option = uc_attribute_option_load($option->oid);
++
++    $fields_ok = TRUE;
++    foreach ($edit as $field => $value) {
++      if ($option->$field != $value) {
++        $this->showVar($option);
++        $this->showVar($edit);
++        $fields_ok = FALSE;
++        break;
++      }
++    }
++
++    $this->assertTrue($fields_ok, t('Attribute option edited successfully by form.'), t('Ubercart'));
++  }
++
++  public function testAttributeUIAttributeOptionsDelete() {
++    $attribute = self::createAttribute();
++    $option = self::createAttributeOption();
++
++    uc_attribute_option_save($option);
++
++    $this->drupalGet('admin/store/attributes/'. $attribute->aid .'/options/'. $option->oid .'/delete');
++
++    $this->AssertText(t('Are you sure you want to delete the option @name?', array('@name' => $option->name)), t('Attribute options delete form working.'), t('Ubercart'));
++
++    $this->drupalPost('admin/store/attributes/'. $attribute->aid .'/options/'. $option->oid .'/delete', array(), t('Delete'));
++
++    $option = uc_attribute_option_load($option->oid);
++
++    $this->assertFalse($option, t('Attribute option deleted successfully by form'), t('Ubercart'));
++  }
++
++  // Simpletest needs work before we can do this form.
++/*  public function testAttributeUIClassAttributeOverview() {
++    $class = UbercartProductTestCase::createProductClass();
++    $attribute = self::createAttribute();
++
++    $this->drupalGet('admin/store/products/classes/'. $class->pcid .'/attributes');
++
++    $this->assertText(t('You must first add attributes to this class.'), t('Class attribute form working.'), t('Ubercart'));
++
++    uc_attribute_subject_save($attribute, 'class', $class->pcid);
++
++    $this->drupalGet('admin/store/products/classes/'. $class->pcid .'/attributes');
++
++    $this->assertNoText(t('You must first add attributes to this class.'), t('Class attribute form working.'), t('Ubercart'));
++
++    $a = (array) self::createAttribute(array(), FALSE);
++    unset($a['name'], $a['description']);
++    $edit['attributes'][$attribute->aid] = $a;
++    $this->showVar($edit);
++    $this->drupalPost('admin/store/products/classes/'. $class->pcid .'/attributes', $edit, t('Save changes'));
++
++    $attribute = uc_attribute_load($attribute->aid, 'class', $class->pcid);
++
++    $fields_ok = TRUE;
++    foreach ($a as $field => $value) {
++      if ($attribute->$field != $value) {
++        $this->showVar($attribute);
++        $this->showVar($a);
++        $fields_ok = FALSE;
++        break;
++      }
++    }
++
++    $this->assertTrue($fields_ok, t('Class attribute edited successfully by form.'), t('Ubercart'));
++
++    $edit = array();
++    $edit['attributes'][$attribute->aid]['remove'] = TRUE;
++    $this->drupalPost('admin/store/products/classes/'. $class->pcid .'/attributes', $edit, t('Save changes'));
++
++    $this->assertText(t('You must first add attributes to this class.'), t('Class attribute form working.'), t('Ubercart'));
++  }
++
++  public function testAttributeUIClassAttributeAdd() {
++    $class = UbercartProductTestCase::createProductClass();
++    $attribute = self::createAttribute();
++
++    $this->drupalGet('admin/store/products/classes/'. $class->pcid .'/attributes/add');
++
++    $this->assertRaw(t('@attribute</option>', array('@option' => $attribute->name)), t('Class attribute add form working.'), t('Ubercart'));
++
++    $edit['add_attributes'][$attribute->aid] = $attribute->aid;
++
++    $this->drupalPost('admin/store/products/classes/'. $class->pcid .'/attributes/add', $edit, t('Add atrributes'));
++
++    $this->assertNoText(t('You must first add attributes to this class.'), t('Class attribute form working.'), t('Ubercart'));
++  }
++
++  public function testAttributeUIClassAttributeOptionOverview() {
++    $class = UbercartProductTestCase::createProductClass();
++    $attribute = self::createAttribute();
++    $option = self::createAttributeOption();
++
++    uc_attribute_subject_save($attribute, 'class', $class->pcid);
++
++    $this->drupalGet('admin/store/products/classes/'. $class->pcid .'/options');
++
++    $this->assertRaw(t('<h2>@attribute</h2>', array('@attribute' => $attribute->name)), t('Class attribute option form working.'), t('Ubercart'));
++
++    $o = (array) self::createAttribute(array(), FALSE);
++    unset($o['name'], $o['aid']);
++    $edit['attributes'][$attribute->aid]['options'][$option->oid] = $o;
++    $this->showVar($edit);
++    $this->drupalPost('admin/store/products/classes/'. $class->pcid .'/options', $edit, t('Submit'));
++
++    $option = uc_attribute_subject_option_load($option->oid, 'class', $class->pcid);
++
++    $fields_ok = TRUE;
++    foreach ($o as $field => $value) {
++      if ($option->$field != $value) {
++        $this->showVar($option);
++        $this->showVar($o);
++        $fields_ok = FALSE;
++        break;
++      }
++    }
++    $this->assertTrue($fields_ok, t('Class attribute edited successfully by form.'), t('Ubercart'));
++  }
++  */
++
++  public static function createProductAdjustment($data) {
++    $adjustment = $data + array(
++      'nid' => rand(1, db_last_insert_id('node', 'nid')),
++      'model' => self::randomName(8),
++    );
++    db_query("INSERT INTO {uc_product_adjustments} (nid, combination, model) VALUES (%d, '%s', '%s')", $data['nid'], $data['combination'], $data['model']);
++  }
++
++  protected static function _attributeFieldsToTest($type = '') {
++    $fields = array(
++      'aid', 'name', 'ordering', 'required', 'display', 'description', 'label',
++    );
++
++    switch ($type) {
++      case 'product':
++      case 'class':
++
++        $info = uc_attribute_type_info($type);
++        $fields = array_merge($fields, array($info['id']));
++      break;
++    }
++    return $fields;
++  }
++
++  protected static function _attributeOptionFieldsToTest($type = '') {
++    $fields = array(
++      'aid', 'oid', 'name', 'cost', 'price', 'weight', 'ordering',
++    );
++
++    switch ($type) {
++      case 'product':
++      case 'class':
++
++        $info = uc_attribute_type_info($type);
++        $fields = array_merge($fields, array($info['id']));
++      break;
++    }
++    return $fields;
++  }
++
++  public static function createAttribute($data = array(), $save = TRUE) {
++    $attribute = $data + array(
++      'name' => DrupalWebTestCase::randomName(8),
++      'label' => DrupalWebTestCase::randomName(8),
++      'description' => DrupalWebTestCase::randomName(8),
++      'required' => rand(0, 1) ? TRUE : FALSE,
++      'display' => rand(0, 3),
++      'ordering' => rand(-10, 10),
++    );
++    $attribute = (object) $attribute;
++
++    if ($save) {
++      uc_attribute_save($attribute);
++    }
++    return $attribute;
++  }
++
++  public static function createAttributeOption($data = array(), $save = TRUE) {
++    $option = $data + array(
++      'aid' => rand(1, db_last_insert_id('uc_attributes', 'aid')),
++      'name' => DrupalWebTestCase::randomName(8),
++      'cost' => rand(-500, 500),
++      'price' => rand(-500, 500),
++      'weight' => rand(-500, 500),
++      'ordering' => rand(-10, 10),
++    );
++    $option = (object) $option;
++
++    if ($save) {
++      uc_attribute_option_save($option);
++    }
++    return $option;
++  }
++
++  function showVar($var) {
++    $this->pass('<pre>'. print_r($var, TRUE) .'</pre>');
++  }
++}
+diff --git uc_product/uc_product.admin.inc uc_product/uc_product.admin.inc
+index 2af698e..8b7aa9f 100644
+--- uc_product/uc_product.admin.inc
++++ uc_product/uc_product.admin.inc
+@@ -389,18 +389,11 @@ function uc_product_features($node) {
+   if (arg(4)) {
+     // First check to see if we're trying to remove a feature.
+     if (intval(arg(5)) > 0 && arg(6) == 'delete') {
+-      $result = db_query("SELECT * FROM {uc_product_features} WHERE pfid = %d AND fid = '%s'", intval(arg(5)), arg(4));
+-      if ($feature = db_fetch_array($result)) {
++      $feature = uc_product_feature_load(intval(arg(5)), arg(4));
++      if (isset($feature)) {
+         // If the user confirmed the delete, process it!
+         if ($_POST['pf_delete']) {
+-          // Call the delete function for this product feature if it exists.
+-          $func = uc_product_feature_data($feature['fid'], 'delete');
+-          if (function_exists($func)) {
+-            $func($feature);
+-          }
+-
+-          // Remove the product feature data from the database.
+-          db_query("DELETE FROM {uc_product_features} WHERE pfid = %d", intval(arg(5)));
++          uc_product_feature_delete(intval(arg(5)));
+ 
+           drupal_set_message(t('The product feature has been deleted.'));
+           drupal_goto('node/'. arg(1) .'/edit/features');
+@@ -425,8 +418,8 @@ function uc_product_features($node) {
+         $output = drupal_get_form($func, $node, array());
+       }
+       elseif (intval(arg(5)) > 0) {
+-        $result = db_query("SELECT * FROM {uc_product_features} WHERE pfid = %d AND fid = '%s'", intval(arg(5)), arg(4));
+-        if ($feature = db_fetch_array($result)) {
++        $feature = uc_product_feature_load(intval(arg(5)), arg(4));
++        if (isset($feature)) {
+           $output = drupal_get_form($func, $node, $feature);
+         }
+       }
+@@ -446,27 +439,28 @@ function uc_product_features($node) {
+ 
+   $header = array(t('Type'), t('Description'), t('Operations'));
+ 
+-  $result = db_query("SELECT * FROM {uc_product_features} WHERE nid = %d ORDER BY pfid ASC", $node->nid);
+-  while ($feature = db_fetch_object($result)) {
+-    $operations = array(
+-      l(t('edit'), 'node/'. $node->nid .'/edit/features/'. $feature->fid .'/'. $feature->pfid),
+-      l(t('delete'), 'node/'. $node->nid .'/edit/features/'. $feature->fid .'/'. $feature->pfid .'/delete'),
+-    );
+-    $rows[] = array(
+-      'data' => array(
+-        array('data' => uc_product_feature_data($feature->fid, 'title'), 'nowrap' => 'nowrap'),
+-        array('data' => $feature->description, 'width' => '100%'),
+-        array('data' => implode(' ', $operations), 'nowrap' => 'nowrap'),
+-      ),
+-      'valign' => 'top',
+-    );
+-  }
+-
+-  if (empty($rows)) {
++  $features = uc_product_feature_load_multiple($node->nid);
++  if (empty($features)) {
+     $rows[] = array(
+       array('data' => t('No features found for this product.'), 'colspan' => 3),
+     );
+   }
++  else {
++    foreach ($features as $feature) {
++      $operations = array(
++        l(t('edit'), 'node/'. $node->nid .'/edit/features/'. $feature->fid .'/'. $feature->pfid),
++        l(t('delete'), 'node/'. $node->nid .'/edit/features/'. $feature->fid .'/'. $feature->pfid .'/delete'),
++      );
++      $rows[] = array(
++        'data' => array(
++          array('data' => uc_product_feature_data($feature->fid, 'title'), 'nowrap' => 'nowrap'),
++          array('data' => $feature->description, 'width' => '100%'),
++          array('data' => implode(' ', $operations), 'nowrap' => 'nowrap'),
++        ),
++        'valign' => 'top',
++      );
++    }
++  }
+ 
+   $output = theme('table', $header, $rows)
+           . drupal_get_form('uc_product_feature_add_form');
+diff --git uc_product/uc_product.module uc_product/uc_product.module
+index 069537a..36659d8 100644
+--- uc_product/uc_product.module
++++ uc_product/uc_product.module
+@@ -1948,6 +1948,65 @@ function uc_product_feature_save($data) {
+ }
+ 
+ /**
++ * Load all product feature for a node.
++ *
++ * @param $nid
++ *   The product node ID.
++ * @returns
++ *   The array of all product features object.
++ */
++function uc_product_feature_load_multiple($nid) {
++  $result = db_query("SELECT * FROM {uc_product_features} WHERE nid = %d ORDER BY pfid ASC", $nid);
++  while ($feature = db_fetch_object($result)) {
++    $features[$feature->pfid] = $feature;
++  }
++  return $features;
++}
++
++/**
++ * Load a product feature object.
++ *
++ * @todo: should return an object instead of array.
++ *
++ * @param $pfid
++ *   The product feature ID.
++ * @param $fid
++ *   Optional. Specify a specific feature id.
++ * @returns
++ *   The product feature object.
++ */
++function uc_product_feature_load($pfid, $fid = NULL) {
++  if (isset($fid)) {
++    $feature = db_fetch_array(db_query("SELECT * FROM {uc_product_features} WHERE pfid = %d AND fid = '%s'", $pfid, $fid)); 
++  }
++  else {
++    $feature = db_fetch_array(db_query("SELECT * FROM {uc_product_features} WHERE pfid = %d", $pfid));
++  }
++  return $feature;
++}
++
++/**
++ * Delete a product feature object.
++ *
++ * @param $pfid
++ *   The product feature ID.
++ * @returns
++ *   The product feature object.
++ */
++function uc_product_feature_delete($pfid) {
++  $feature = uc_product_feature_load($pfid);
++
++  // Call the delete function for this product feature if it exists.
++  $func = uc_product_feature_data($feature['fid'], 'delete');
++  if (function_exists($func)) {
++    $func($feature);
++  }
++  db_query("DELETE FROM {uc_product_features} WHERE pfid = %d", $pfid);
++
++  return SAVED_DELETED;
++}
++
++/**
+  * Create a file field with an image field widget, and attach it to products.
+  *
+  * This field is used by default on the product page, as well as on the cart
+diff --git uc_product/uc_product.test uc_product/uc_product.test
+new file mode 100644
+index 0000000..4068405
+--- /dev/null
++++ uc_product/uc_product.test
+@@ -0,0 +1,87 @@
++<?php
++// $Id: ubercart_api.patch,v 1.1.2.1 2010/10/22 16:49:16 univate Exp $
++
++/**
++ * @file
++ * Ubercart Product Tests
++ */
++
++class UbercartProductTestCase extends DrupalWebTestCase {
++
++  var $admin_user;
++
++  function getInfo() {
++    return array(
++      'name' => t('Product API'),
++      'description' => t('Test the product API.'),
++      'group' => t('Ubercart'),
++    );
++  }
++
++  function setUp() {
++    parent::setUp('token', 'uc_store', 'uc_product');
++
++    $this->admin_user = $this->drupalCreateUser(array('administer store'));
++    $this->drupalLogin($this->admin_user);
++  }
++
++  /**
++   * @param $data
++   *   Data to potentially override the data used to create a product.
++   * @return (stdClass)
++   *  The product object.
++   */
++  public static function createProduct($data = array()) {
++
++    $weight_units = array(
++      'lb', 'kg', 'oz', 'g',
++    );
++    $weight_unit = $weight_units[array_rand($weight_units)];
++
++    $length_units = array(
++      'in', 'ft', 'cm', 'mm',
++    );
++    $length_unit = $length_units[array_rand($length_units)];
++
++    $product = $data + array(
++      'model' => DrupalWebTestCase::randomName(8),
++      'list_price' => rand(0, 1000),
++      'cost' => rand(0, 1000),
++      'sell_price' => rand(0, 1000),
++      'weight' => rand(0, 1000),
++      'weight_units' => $weight_unit,
++      'length' => rand(0, 1000),
++      'width' => rand(0, 1000),
++      'height' => rand(0, 1000),
++      'length_units' => $length_unit,
++      'pkg_qty' => rand(0, 50),
++      'default_qty' => rand(0, 50),
++      'ordering' => rand(-10, 10),
++      'shippable' => rand(0, 1),
++      'type' => 'product',
++      'title' => DrupalWebTestCase::randomName(8),
++      'uid' => 1,
++    );
++    $product = (object)$product;
++    $product->unique_hash = md5($product->vid . $product->nid . $product->model . $product->list_price . $product->cost . $product->sell_price . $product->weight . $product->weight_units . $product->length . $product->width . $product->height . $product->length_units . $product->pkg_qty . $product->default_qty . $product->shippable . time());
++
++    node_save($product);
++
++    return $product;
++  }
++
++  // Fix this after adding a proper API call for saving a product class.
++  public static function createProductClass($data = array()) {
++    $product_class = $data + array(
++      'pcid' => DrupalWebTestCase::randomName(8),
++      'name' => DrupalWebTestCase::randomName(8),
++      'description' => DrupalWebTestCase::randomName(8),
++    );
++    $product_class = (object) $product_class;
++
++    drupal_write_record('uc_product_classes', $product_class);
++
++    return $product_class;
++//    db_query("INSERT INTO {uc_product_classes} (pcid, name, description) VALUES ('%s', '%s', '%s')", $pcid, $form_state['values']['name'], $form_state['values']['description']);
++  }
++}

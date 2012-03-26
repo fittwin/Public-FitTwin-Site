@@ -1,0 +1,36 @@
+<?php
+/**
+ * @file
+ *   Installation hooks
+ */
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function profile_pictures_uninstall() {
+  // Selecting all files for deleting
+  $res = db_query(
+   'SELECT v.value
+      FROM {profile_fields} f
+    INNER JOIN {profile_values} v
+      ON f.fid = v.fid
+    WHERE (f.type="picture")');
+  $imagecache = module_exists('imagecache');
+  while ($row = db_fetch_object($res)) {
+    $cur = explode('?', $row->value);
+    $cur = $cur[0];
+    if (file_exists($cur)) {
+      if ($imagecache) {
+        imagecache_image_flush($cur);
+      }
+      file_delete($cur);
+    }
+  }
+
+  // Deleting all profile fields/values
+  db_query(
+  'DELETE FROM {profile_values} WHERE fid IN (
+     SELECT fid FROM {profile_fields} WHERE type="picture"
+   )');
+  db_query('DELETE FROM {profile_fields} WHERE type="picture"');
+}

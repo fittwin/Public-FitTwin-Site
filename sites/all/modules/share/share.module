@@ -1,0 +1,350 @@
+<?php
+// $Id: share.module,v 1.27.2.11.2.9 2009/03/26 21:12:20 greenskin Exp $
+
+/**
+ * @file
+ * Provides a widget that modules can put their links/forms related to sharing
+ *
+ * This module provides functionality for the creation of Share widgets which
+ * provides tabs for each enabled module which utilizes the hooks provided by
+ * Share, these tabs then contain link/forms provided by the module. Share
+ * widgets can be created and set to appear on different pages as well as set
+ * which tabs will be shown and the style of the widget.
+ *
+ * Written by greenSkin.
+ */
+
+/*******************************************************************************
+ * Hook Functions (Drupal)
+ ******************************************************************************/
+
+/**
+ * Implementation of hook_help().
+ */
+function share_help($path, $args) {
+  switch ($path) {
+    case 'admin/build/share':
+      $output = '';
+      $widgets = module_implements('share_render');
+      if (empty($widgets)) {
+        $output .= '<p>'. t('At least one widget needs to be installed.') .'</p>';
+      }
+      return $output;
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function share_perm() {
+  return array('administer share');
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function share_theme() {
+  return array(
+    'share_list_widgets' => array(
+      'arguments' => array('widgets' => NULL)
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function share_menu() {
+  $items = array();
+  $items['admin/build/share'] = array(
+    'title' => 'Share',
+    'description' => 'Manage Share widgets',
+    'page callback' => 'share_admin_page',
+    'access arguments' => array('administer share'),
+    'file' => 'share.admin.inc'
+  );
+  $items['admin/build/share/list'] = array(
+    'title' => 'List',
+    'page callback' => 'share_admin_page',
+    'access arguments' => array('administer share'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -1,
+    'file' => 'share.admin.inc'
+  );
+  $items['admin/build/share/%share/delete'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('share_delete_form', 3),
+    'access arguments' => array('administer share'),
+    'type' => MENU_CALLBACK,
+    'file' => 'share.admin.inc'
+  );
+  $items['admin/build/share/%share/edit'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('share_form', 3),
+    'access arguments' => array('administer share'),
+    'type' => MENU_CALLBACK,
+    'file' => 'share.admin.inc'
+  );
+  $items['admin/build/share/%/disable'] = array(
+    'page callback' => 'share_status',
+    'page arguments' => array('disable', 3, TRUE),
+    'access arguments' => array('administer share'),
+    'type' => MENU_CALLBACK,
+    'file' => 'share.admin.inc'
+  );
+  $items['admin/build/share/%/enable'] = array(
+    'page callback' => 'share_status',
+    'page arguments' => array('enable', 3, TRUE),
+    'access arguments' => array('administer share'),
+    'type' => MENU_CALLBACK,
+    'file' => 'share.admin.inc'
+  );
+
+  $widgets = module_implements('share_render');
+  if (!empty($widgets)) {
+    if (count($widgets) == 1 && $widgets[0] == 'share_widget') {
+      $tabs = module_implements('share_tab');
+      if (empty($tabs)) {
+        return $items;
+      }
+    }
+    $items['admin/build/share/add'] = array(
+      'title' => 'Add',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('share_add_form'),
+      'access arguments' => array('administer share'),
+      'type' => MENU_LOCAL_TASK,
+      'file' => 'share.admin.inc'
+    );
+  }
+  return $items;
+}
+
+/**
+ * Implementation of hook_link().
+ */
+function share_link($type, $object, $teaser = FALSE) {
+  $links = array();
+
+  if ($type == 'node' && ($shares = share_get_widgets('link', $node->type))) {
+    $node = $object;
+    $settings = array();
+    foreach ($shares as $value) {
+      $share = share_load($value->share_id, $value->module);
+
+      if (!$share->visible($node, $teaser)) {
+        continue;
+      }
+
+      if ($share->module == 'share_widget') {
+        $settings[] = array(
+          'nid' => $node->nid,
+          'shareID' => $share->share_id,
+          'widget' => $share->render($node, 'content')
+        );
+      }
+      $share_clone = drupal_clone($share);
+      $node_clone = drupal_clone($node);
+      $share_link = module_invoke($share->module, 'share_render', 'link', $share_clone, $node_clone);
+      if (!empty($share_link)) {
+        $links += $share_link;
+      }
+    }
+    if (!empty($settings)) {
+      drupal_add_js(array('share' => $settings), 'setting');
+    }
+  }
+  return $links;
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function share_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'view':
+      if ($shares = share_get_widgets('node', $node->type)) {
+        foreach ($shares as $value) {
+          $share = share_load($value->share_id, $value->module);
+          if (!$share->visible($node, $a3, $a4)) {
+            continue;
+          }
+          $share_clone = drupal_clone($share);
+          $node_clone = drupal_clone($node);
+          $share_content = module_invoke($share->module, 'share_render', 'node', $share_clone, $node_clone);
+          if (!empty($share_content)) {
+            $node->content += $share_content;
+          }
+        }
+      }
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function share_block($op = 'list', $delta = 0, $edit = array()) {
+  switch ($op) {
+    case 'list':
+      $blocks = array();
+      if ($shares = share_get_widgets('block')) {
+        foreach ($shares as $value) {
+          $blocks[$value->share_id]['info'] = $value->label;
+        }
+      }
+      return $blocks;
+    case 'view':
+      if (arg(0) == 'node' && is_numeric($nid = arg(1))) {
+        $node = node_load($nid);
+        if ($shares = share_get_widgets('block', $node->type)) {
+          if (isset($shares[$delta])) {
+            $share_id = $delta;
+            if ($share = share_load($share_id)) {
+              if ($share->visible($node, FALSE, TRUE)) {
+                $share_clone = drupal_clone($share);
+                $node_clone = drupal_clone($node);
+                $share_content = module_invoke($share->module, 'share_render', 'block', $share_clone, $node_clone);
+                $block['subject'] = $share->name;
+                $block['content'] = $share_content;
+                return $block;
+              }
+            }
+          }
+        }
+      }
+      break;
+  }
+}
+
+/*******************************************************************************
+ * Callback Functions, Forms, and Tables
+ ******************************************************************************/
+
+
+
+/*******************************************************************************
+ * Module and Helper Functions
+ ******************************************************************************/
+
+function share_load($share_id, $module = NULL) {
+  static $shares = array();
+
+  if ($module == NULL) {
+    $module = db_result(db_query("SELECT module FROM {share} WHERE share_id = %d", $share_id));
+  }
+
+  share_include_class($module);
+
+  if ($shares[$share_id]) {
+    return $shares[$share_id];
+  }
+
+  if (class_exists($module)) {
+    $share = new $module;
+    $share->load($share_id);
+    $shares[$share_id] = $share;
+    return $shares[$share_id];
+  }
+  drupal_set_message(t('The class %module does not exist.', array('%module' => $module)), 'error');
+  return FALSE;
+}
+
+function share_save($share) {
+  if (isset($share->share_id) && !empty($share->share_id)) {
+    db_query("UPDATE {share} SET module = '%s', label = '%s', type = '%s', view = %d, status = %d, weight = %d WHERE share_id = '%s'",
+      $share->module, $share->label, $share->type, $share->view, $share->status, $share->weight, $share->share_id);
+
+    // invoke hook_share, 'update'
+    module_invoke($share->module, 'share', 'update', $share);
+  }
+  else {
+    db_query("INSERT INTO {share} (module, label, type, view, status, weight) VALUES ('%s', '%s', '%s', %d, %d, %d)",
+      $share->module, $share->label, $share->type, $share->view, $share->status, $share->weight);
+
+    $share->share_id = db_last_insert_id('share', 'share_id');
+
+    // invoke hook_share, 'insert'
+    module_invoke($share->module, 'share', 'insert', $share);
+  }
+  share_save_node_types($share->share_id, $share->node_types);
+  if (isset($share->terms)) {
+    share_save_terms($share->share_id, $share->terms);
+  }
+  return $share->share_id;
+}
+
+function share_save_node_types($share_id, $node_types) {
+  db_query("DELETE FROM {share_node_types} WHERE share_id = %d", $share_id);
+  $node_types = array_filter($node_types);
+  foreach ($node_types as $type) {
+    db_query("INSERT INTO {share_node_types} (share_id, node_type) VALUES (%d, '%s')", $share_id, $type);
+  }
+}
+
+function share_save_terms($share_id, $terms) {
+  db_query("DELETE FROM {share_terms} WHERE share_id = %d", $share_id);
+  $terms = array_filter($terms);
+  foreach ($terms as $tid) {
+    db_query("INSERT INTO {share_terms} (share_id, tid) VALUES (%d, %d)", $share_id, $tid);
+  }
+}
+
+function share_delete($share) {
+  // invoke hook_share, 'delete'
+  module_invoke($share->module, 'share', 'delete', $share);
+  db_query("DELETE FROM {share} WHERE share_id = %d", $share->share_id);
+}
+
+function share_get_widgets($type = NULL, $node_type = NULL, $module = NULL, $status = 1, $reset = FALSE) {
+  static $shares = array();
+
+  $id = $type . $node_type . $module . $status;
+
+  if (isset($shares[$id]) && !empty($shares[$id]) && $reset == FALSE) {
+    return $shares[$id];
+  }
+
+  $where_query = array();
+  if ($type) {
+    $where_query[] = "s.type = '%s'";
+    $vars[] = $type;
+  }
+  if ($module) {
+    $where_query[] = "s.module = '%s'";
+    $vars[] = $module;
+  }
+  if ($status) {
+    $where_query[] = "s.status = %d";
+    $vars[] = $status;
+  }
+
+  if ($node_type) {
+    $sql = "SELECT n.share_id FROM {share_node_types} AS n WHERE n.node_type != NULL AND n.node_type != '%s'";
+    $where_query[] = "s.share_id NOT IN ($sql)";
+    $vars[] = $node_type;
+    $where_query = implode(' AND ', $where_query);
+    $result = db_query("SELECT s.* FROM {share} AS s WHERE $where_query", $vars);
+  }
+  else {
+    $where_query = implode(' AND ', $where_query);
+    $result = db_query("SELECT s.* FROM {share} AS s WHERE $where_query", $vars);
+  }
+  while ($share = db_fetch_object($result)) {
+    $shares[$id][$share->share_id] = $share;
+  }
+
+  return $shares[$id];
+}
+
+function share_include_class($module = 'share') {
+  static $share_class_added = array();
+
+  if ($module != 'share') {
+    share_include_class();
+  }
+  if (!isset($share_class_added[$module]) && $share_class_added[$module] !== TRUE) {
+    module_load_include('inc', $module, $module .'.class');
+    $share_class_added[$module] = TRUE;
+  }
+}

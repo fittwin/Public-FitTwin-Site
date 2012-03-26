@@ -1,0 +1,10 @@
+<?php
+// $Id: sharethis_widget.install,v 1.1.2.1 2009/03/26 21:12:23 greenskin Exp $
+
+function sharethis_widget_install() {
+  
+}
+
+function sharethis_widget_uninstall() {
+  
+}

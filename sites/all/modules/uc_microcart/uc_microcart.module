@@ -1,0 +1,66 @@
+<?php
+
+/**
+ * Implementation of hook_block
+ * @param string $op
+ * @param int $delta
+ * @param array $edit
+ */
+function uc_microcart_block($op='list', $delta = 0, $edit = array()) {
+  switch ($op) {
+    case 'save':
+      variable_set('uc_microcart_hide_if_empty',
+      $edit['uc_microcart_hide_if_empty']);
+      break;
+    case 'configure':
+        $form['uc_microcart_hide_if_empty'] = array (
+          '#type' => 'checkbox',
+          '#title' => t('Hide the microcart block if cart is empty?'),
+          '#default_value' => variable_get('uc_microcart_hide_if_empty', false),
+        );
+        return $form;
+      break;
+    case 'list':
+      $blocks[0] = array(
+        'info' => t('Microcart'),
+      );
+      return $blocks;
+    case 'view':
+      switch ($delta) {
+        case 0:
+          $meta = uc_microcart_metadata();
+          if( variable_get('uc_microcart_hide_if_empty',false) && $meta['count'] < 1 )
+            $block['content'] = '';
+          else $block['content'] = theme('microcart', $meta);
+          break;
+      }
+      return $block;
+  }
+}
+
+/**
+ * Implementation of hook_theme()
+ */
+function uc_microcart_theme() {
+  return array(
+    'microcart' => array(
+    'arguments' => array('cart_metadata' => array('count' => 0, 'total' => 0)),
+    'template' => 'microcart',
+  ),
+  );
+}
+
+function uc_microcart_metadata() {
+  $meta = array(
+    'count' => 0,
+    'total' => 0.00,
+  );
+  $cid = uc_cart_get_id();
+  $contents = uc_cart_get_contents($cid);
+
+  foreach ($contents as $item) {
+    $meta['count'] += $item->qty;
+    $meta['total'] += $item->qty * $item->price;
+  }
+  return $meta;
+}

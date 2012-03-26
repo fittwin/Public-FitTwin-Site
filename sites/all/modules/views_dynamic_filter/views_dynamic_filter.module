@@ -1,0 +1,8 @@
+<?php
+function views_dynamic_filter_views_prerender(&$view) {
+print "IN HERE";
+    if ($view->name == 'facility_proximity_view' && $_COOKIE['user-zip']) {
+        $view->set_exposed_input(array('distance' => $_COOKIE['user-zip']));
+    }
+}
+?>

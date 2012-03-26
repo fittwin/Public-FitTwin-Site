@@ -1,0 +1,146 @@
+<?php
+// $Id: checkall.module,v 1.2.2.11 2009/12/27 20:45:36 markuspetrux Exp $
+
+/**
+ * @file
+ * Extends FormAPI checkboxes with the 'checkall' behavior.
+ */
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function checkall_form_alter(&$form, $form_state, $form_id) {
+  $form['#after_build'][] = 'checkall_form_after_build';
+}
+
+/**
+ * Implementation of hook_widget_settings_alter().
+ *
+ * Note: This hook is available since CCK 2.5.
+ *
+ * Control '#checkall' attribute in CCK form field definition.
+ */
+function checkall_widget_settings_alter(&$settings, $op, $widget) {
+  $widget_types = array(
+    'optionwidgets_buttons',
+    'nodereference_buttons',
+    'userreference_buttons',
+    'content_taxonomy_options',
+  );
+  if ((isset($widget['type']) && in_array($widget['type'], $widget_types)) || (isset($widget['widget_type']) && in_array($widget['widget_type'], $widget_types))) {
+    switch ($op) {
+      case 'form':
+        $settings['checkall'] = array(
+          '#title' => t('Checkall settings'),
+          '#type' => 'fieldset',
+          '#collapsible' => TRUE,
+          '#collapsed' => FALSE,
+          '#weight' => 2,
+        );
+        $settings['checkall']['checkall'] = array(
+          '#title' => t('Include checkall options'),
+          '#type' => 'radios',
+          '#options' => array(0 => t('Disabled'), 1 => t('Enabled')),
+          '#default_value' => isset($widget['checkall']) ? $widget['checkall'] : 0,
+          '#description' => t('Enable this to display checkall options near checkbox groups when this field is configured to accept multiple values.'),
+        );
+        break;
+      case 'save':
+        $settings[] = 'checkall';
+        break;
+    }
+  }
+}
+
+/**
+ * After build callback.
+ */
+function checkall_form_after_build($elements, &$form_state) {
+  checkall_form_after_build_recursive($elements, $form_state);
+  return $elements;
+}
+
+/**
+ * Helper function to find elements with '#checkall' attribute recursively.
+ */
+function checkall_form_after_build_recursive(&$elements, &$form_state, $checkall = NULL) {
+  foreach (element_children($elements) as $key) {
+    if (isset($elements[$key]) && $elements[$key]) {
+
+      if (isset($checkall)) {
+        // Inherit checkall attribute if specified by the caller.
+        $children_checkall = $checkall;
+      }
+      elseif (!empty($elements[$key]['#checkall'])) {
+        // Inherit checkall attribute if specified in the form element.
+        $children_checkall = $elements[$key]['#checkall'];
+      }
+      else {
+        // Assume no checkall attribute has been specified.
+        $children_checkall = NULL;
+
+        // Inherit checkall attribute if specified in CCK field settings.
+        if (isset($elements[$key]['#field_name']) && isset($elements[$key]['#type_name'])) {
+          $field = content_fields($elements[$key]['#field_name'], $elements[$key]['#type_name']);
+          if (!empty($field) && isset($field['widget']) && !empty($field['widget']['checkall'])) {
+            $children_checkall = TRUE;
+          }
+        }
+      }
+
+      checkall_form_after_build_recursive($elements[$key], $form_state, $children_checkall);
+    }
+  }
+  if (isset($checkall) && isset($elements['#type']) && $elements['#type'] == 'checkboxes') {
+    $elements['#checkall'] = $checkall;
+    $elements = checkall_element_process($elements);
+  }
+}
+
+/**
+ * Process the checkall extension for the checkboxes element.
+ */
+function checkall_element_process($element) {
+  // See if the #checkall flag is present.
+  if (!empty($element['#checkall'])) {
+    $class = is_string($element['#checkall']) ? trim($element['#checkall']) : '';
+    if (empty($class)) {
+      $class = 'checkall-'. $element['#id'];
+    }
+
+    // Append classes to the checkboxes element.
+    if (!isset($element['#attributes'])) {
+      $element['#attributes'] = array();
+    }
+    if (empty($element['#attributes']['class'])) {
+      $element['#attributes']['class'] = 'form-checkall '. $class;
+    }
+    else {
+      $element['#attributes']['class'] .= ' form-checkall '. $class;
+    }
+
+    // Append class to the checkboxes items.
+    foreach (element_children($element) as $key) {
+      if ($element[$key]['#type'] == 'checkbox') {
+        if (!isset($element[$key]['#attributes'])) {
+          $element[$key]['#attributes'] = array();
+        }
+        if (empty($element[$key]['#attributes']['class'])) {
+          $element[$key]['#attributes']['class'] = $class;
+        }
+        else {
+          $element[$key]['#attributes']['class'] .= ' '. $class;
+        }
+      }
+    }
+
+    // Append the unique checkboxes class to Drupal.settings.checkall.
+    drupal_add_js(array('checkall' => array('groups' => $class)), 'setting');
+
+    // Add our stylesheet and javascript files to the page.
+    drupal_add_css(drupal_get_path('module', 'checkall') .'/checkall.css');
+    drupal_add_js(drupal_get_path('module', 'checkall') .'/checkall.js');
+  }
+
+  return $element;
+}

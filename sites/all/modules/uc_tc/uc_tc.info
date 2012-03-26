@@ -1,0 +1,12 @@
+; $Id: uc_tc.info,v 1.1 2010/05/18 15:26:24 hanoii Exp $
+name = Terms and conditions
+description = Defines a pane at checkout page for accepting the T&Cs
+dependencies[] = uc_store
+package = "Ubercart - extra"
+core = 6.x
+; Information added by drupal.org packaging script on 2010-05-18
+version = "6.x-1.0"
+core = "6.x"
+project = "uc_tc"
+datestamp = "1274197220"
+

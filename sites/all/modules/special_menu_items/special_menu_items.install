@@ -1,0 +1,31 @@
+<?php
+/**
+ * @file area_banner.install
+ * Contains uninstall for functions used by special_menu_items
+ */
+
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function special_menu_items_uninstall() {
+  variable_del('oldtheme_menu_item_link'); 
+  variable_del('special_menu_items_nolink_tag'); 
+  variable_del('special_menu_items_seperator_tag'); 
+  variable_del('special_menu_items_seperator_value'); 
+}
+
+/**
+ * Implements hook_update_N().
+ */
+function special_menu_items_update_6000() {
+  // Removes the 'oldtheme_menu_item_link' variable, which should now
+  // be an array and not a string.
+  variable_del('oldtheme_menu_item_link');
+  
+  // Rebuild all theme registries.
+  module_invoke('system', 'theme_data');
+  drupal_rebuild_theme_registry();
+  
+  return array();
+}

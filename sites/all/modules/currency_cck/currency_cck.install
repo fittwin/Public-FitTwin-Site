@@ -1,0 +1,34 @@
+<?php
+// $Id: currency_cck.install,v 1.1.2.2 2009/03/03 18:48:06 owahab Exp $
+
+/**
+* Implementation of hook_install().
+*/
+function currency_cck_install() {
+  drupal_load('module', 'content');
+  content_notify('install', 'currency_cck');
+}
+
+/**
+* Implementation of hook_uninstall().
+*/
+function currency_cck_uninstall() {
+  drupal_load('module', 'content');
+  content_notify('uninstall', 'currency_cck');
+}
+
+/**
+* Implementation of hook_enable().
+*/
+function currency_cck_enable() {
+  drupal_load('module', 'content');
+  content_notify('enable', 'currency_cck');
+}
+
+/**
+* Implementation of hook_disable().
+*/
+function currency_cck_disable() {
+  drupal_load('module', 'content');
+  content_notify('disable', 'currency_cck');
+}

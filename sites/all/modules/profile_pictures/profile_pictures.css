@@ -1,0 +1,9 @@
+
+/**
+ * @file
+ * Definition for display pictures in views at the right, not like string value
+ */
+
+.profile_pictures_field {
+  float: right;
+}

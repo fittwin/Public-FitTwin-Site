@@ -1,0 +1,356 @@
+<?php
+// $Id: currency_cck.module,v 1.2.2.1 2008/10/21 15:21:29 melsawy Exp $
+
+/**
+ * @file
+ * Defines a field type for currency.
+ */
+
+/**
+ * Implementation of hook_theme().
+ */
+function currency_cck_theme() {
+  return array(
+    'currency_cck_select' => array(
+      'arguments' => array('element' => NULL),
+    ),
+    'currency_cck_formatter_default' => array(
+      'arguments' => array('element'),
+    ),
+    'currency_cck_formatter_plain' => array(
+      'arguments' => array('element'),
+    ),
+    'currency_cck_formatter_full' => array(
+      'arguments' => array('element'),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_field_info().
+ *
+ * Here we indicate that the content module will use its default
+ * handling for the view of this field.
+ *
+ * Callbacks can be omitted if default handing is used.
+ * They're included here just so this module can be used
+ * as an example for custom modules that might do things
+ * differently.
+ */
+function currency_cck_field_info() {
+  return array(
+    'currency_cck' => array(
+      'label' => 'Currency',
+      'description' => t('Store a currency value in the database.'),
+      'callbacks' => array(
+        'tables' => CONTENT_CALLBACK_DEFAULT,
+        'arguments' => CONTENT_CALLBACK_DEFAULT,
+        ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_field_settings().
+ */
+function currency_cck_field_settings($op, $field) {
+  switch ($op) {
+    case 'form':
+      $form = array();
+      return $form;
+
+    case 'save':
+      return array();
+
+    case 'database columns':
+      return array(
+        'currency' => array(
+          'type'     => 'varchar',
+          'length'   => '5',
+          'not null' => TRUE,
+          'default'  => '',
+        ),
+      );
+  }
+}
+
+/**
+ * Implementation of hook_field().
+ */
+function currency_cck_field($op, &$node, $field, &$items, $teaser, $page) {
+  switch ($op) {
+    case 'validate':
+      //die(var_dump($items));
+      $refs = currency_api_get_list($field);
+      foreach ($items as $delta => $item) {
+        //die(var_dump($item));
+        if (is_array($item)) {
+          $error_element = isset($item['_error_element']) ? $item['_error_element'] : '';
+          if (is_array($item) && isset($item['_error_element'])) unset($item['_error_element']);
+          if (!empty($item['currency'])) {
+            if (!isset($refs[$item['currency']])) {
+              form_set_error($error_element, t("%name: this post can't be referenced.", array('%name' => t($field['widget']['label']))));
+            }
+          }
+        }
+      }
+      return $items;
+  }
+}
+
+/**
+* Implementation of hook_content_is_empty().
+*/
+function currency_cck_content_is_empty($item, $field) {
+  if (empty($item['currency'])) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Implementation of hook_field_formatter_info().
+ */
+function currency_cck_field_formatter_info() {
+  return array(
+    'default' => array(
+      'label' => 'Name and code',
+      'field types' => array('currency_cck'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+    ),
+    'plain' => array(
+      'label' => 'Name only',
+      'field types' => array('currency_cck'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+    ),
+    'full' => array(
+      'label' => 'Code only',
+      'field types' => array('currency_cck'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+    )
+  );
+}
+
+/**
+ * Theme function for 'default' currency_cck field formatter.
+ */
+function theme_currency_cck_formatter_default($element) {
+  $output = '';
+  if (!empty($element['#item']['currency'])) {
+    $currency_desc = currency_api_get_desc($element['#item']['currency']);
+    if ($currency_desc !== FALSE) {
+      $output = $currency_desc;
+    }
+  }
+  return $output;
+}
+
+/**
+ * Theme function for 'plain' currency_cck field formatter.
+ */
+function theme_currency_cck_formatter_plain($element) {
+  $output = '';
+  if (!empty($element['#item']['currency'])) {
+    $currency_desc = currency_api_get_desc($element['#item']['currency']);
+    if ($currency_desc !== FALSE) {
+      $pieces = explode(" (", $currency_desc);
+      $output = check_plain($pieces[0]);
+    }
+  }
+  return $output;
+}
+
+/**
+ * Theme function for 'full' currency_cck field formatter.
+ */
+function theme_currency_cck_formatter_full($element) {
+  $output = '';
+  if (!empty($element['#item']['currency'])) {
+    $output = $element['#item']['currency'];
+  }
+  return $output;
+}
+
+/**
+ * Implementation of hook_widget_info().
+ *
+ * Here we indicate that the content module will handle
+ * the default value and multiple values for these widgets.
+ *
+ * Callbacks can be omitted if default handing is used.
+ * They're included here just so this module can be used
+ * as an example for custom modules that might do things
+ * differently.
+ */
+function currency_cck_widget_info() {
+  return array(
+    'currency_cck_select' => array(
+      'label' => t('Select List'),
+      'field types' => array('currency_cck'),
+      'multiple values' => CONTENT_HANDLE_MODULE,
+      'callbacks' => array(
+        'default value' => CONTENT_CALLBACK_DEFAULT,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of FAPI hook_elements().
+ *
+ * Any FAPI callbacks needed for individual widgets can be declared here,
+ * and the element will be passed to those callbacks for processing.
+ *
+ * Drupal will automatically theme the element using a theme with
+ * the same name as the hook_elements key.
+ *
+ * Autocomplete_path is not used by text_widget but other widgets can use it
+ * (see nodereference and userreference).
+ */
+function currency_cck_elements() {
+  return array(
+    'currency_cck_select' => array(
+      '#input' => TRUE,
+      '#columns' => array('currency'), '#delta' => 0,
+      '#process' => array('currency_cck_select_process'),
+    )
+  );
+}
+
+/**
+ * Implementation of hook_widget().
+ *
+ * Attach a single form element to the form. It will be built out and
+ * validated in the callback(s) listed in hook_elements. We build it
+ * out in the callbacks rather than here in hook_widget so it can be
+ * plugged into any module that can provide it with valid
+ * $field information.
+ *
+ * Content module will set the weight, field name and delta values
+ * for each form element. This is a change from earlier CCK versions
+ * where the widget managed its own multiple values.
+ *
+ * If there are multiple values for this field, the content module will
+ * call this function as many times as needed.
+ *
+ * @param $form
+ *   the entire form array, $form['#node'] holds node information
+ * @param $form_state
+ *   the form_state, $form_state['values'][$field['field_name']]
+ *   holds the field's form values.
+ * @param $field
+ *   the field array
+ * @param $items
+ *   array of default values for this field
+ * @param $delta
+ *   the order of this item in the array of subelements (0, 1, 2, etc)
+ *
+ * @return
+ *   the form item for a single element for this field
+ */
+function currency_cck_widget(&$form, &$form_state, $field, $items, $delta = 0) {
+  switch ($field['widget']['type']) {
+    case 'currency_cck_select':
+      $element = array(
+        '#type' => 'currency_cck_select',
+        '#default_value' => $items,
+      );
+      break;
+  }
+  return $element;
+}
+
+/**
+ * Process an individual element.
+ *
+ * Build the form element. When creating a form using FAPI #process,
+ * note that $element['#value'] is already set.
+ *
+ * The $fields array is in $form['#field_info'][$element['#field_name']].
+ */
+function currency_cck_select_process($element, $edit, $form_state, $form) {
+  // The currency_cck_select widget doesn't need to create its own
+  // element, it can wrap around the optionwidgets_select element.
+  // This will create a new, nested instance of the field.
+  // Add a validation step where the value can be unwrapped.
+  $field_key  = $element['#columns'][0];
+  $element[$field_key] = array(
+    '#type' => 'optionwidgets_select',
+    '#default_value' => isset($element['#value']) ? $element['#value'] : '',
+    // The following values were set by the content module and need
+    // to be passed down to the nested element.
+    '#title' => $element['#title'],
+    '#required' => $element['#required'],
+    '#description' => $element['#description'],
+    '#field_name' => $element['#field_name'],
+    '#type_name' => $element['#type_name'],
+    '#delta' => $element['#delta'],
+    '#columns' => $element['#columns'],
+  );
+  if (empty($element[$field_key]['#element_validate'])) {
+    $element[$field_key]['#element_validate'] = array();
+  }
+  array_unshift($element[$field_key]['#element_validate'], 'currency_cck_optionwidgets_validate');
+  //die(var_dump($element['#value']));
+  return $element;
+}
+
+/**
+ * Validate a select/buttons element.
+ *
+ * Remove the wrapper layer and set the right element's value.
+ * We don't know exactly where this element is, so we drill down
+ * through the element until we get to our key.
+ * 
+ * We use $form_state['values'] instead of $element['#value']
+ * to be sure we have the most accurate value when other modules
+ * like optionwidgets are using #element_validate to alter the value.
+ *   
+ */
+function currency_cck_optionwidgets_validate($element, &$form_state) {
+  $field_key  = $element['#columns'][0];
+  $value = $form_state['values'];
+  $new_parents = array();
+  foreach ($element['#parents'] as $parent) {
+    $value = $value[$parent];
+    // Use === to be sure we get right results if parent is a zero (delta) value.
+    if ($parent === $field_key) {
+      $element['#parents'] = $new_parents;
+      form_set_value($element, $value, $form_state);
+      break;
+    }
+    $new_parents[] = $parent;
+   // die(var_dump($new_parents));
+  }
+}
+
+/**
+ * Implementation of hook_allowed_values().
+ */
+function currency_cck_allowed_values($field) {
+  $currencies = currency_api_get_list();
+
+  $options = array();
+  foreach ($currencies as $key => $value) {
+   // die(var_dump($value));
+    // Views theming runs check_plain (htmlentities) on the values.
+    // We reverse that with html_entity_decode.
+    $options[$key] = html_entity_decode(strip_tags($value));
+  }
+  return $options;
+}
+
+/**
+ * FAPI theme for an individual elements.
+ *
+ * The textfield or select is already rendered by the
+ * textfield or select themes and the html output
+ * lives in $element['#children']. Override this theme to
+ * make custom changes to the output.
+ *
+ * $element['#field_name'] contains the field name
+ * $element['#delta]  is the position of this element in the group
+ */
+function theme_currency_cck_select($element) {
+  return $element['#children'];
+}

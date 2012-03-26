@@ -1,0 +1,76 @@
+<?php
+// $Id: curvycorners.module,v 1.1.2.1 2010/11/10 21:19:45 theoverclocked Exp $
+/**
+ * @file
+ * Module for applying curvy corners to divs.
+ * This module the curvycorners javascript to divs.
+ */
+
+/**
+ * Implementation of hook_perm().
+ */
+function curvycorners_perm() {
+  return array('administer curvycorners');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function curvycorners_menu() {
+  $items['admin/settings/curvycorners'] = array(
+    'title' => 'Curvy Corners',
+    'description' => 'Curvy Corners allows you to apply corners to any div on your site.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('curvycorners_settings'),
+    'access arguments' => array('administer curvycorners'),
+   );
+  return $items;
+}
+
+/**
+ * Implementation of hook_init().
+ */
+function curvycorners_init() {
+  $path = drupal_get_path('module', 'curvycorners');
+  drupal_add_js($path . '/curvycorners.js');
+  drupal_add_js(variable_get('curvycorners_all_pages', NULL), 'inline');
+}
+
+/******************************************************************************
+ * Menu Callbacks                                                             *
+ ******************************************************************************/
+
+/**
+ * The one and only curvycorners configuration page
+ */
+function curvycorners_settings() {
+  curvycorners_status();
+  $form['curvycorners_all_pages'] = array(
+    '#type' => 'textarea',
+    '#title' => t('CurvyCorners code to apply on all pages'),
+    '#rows' => variable_get('curvycorners_textarea', 10),
+    '#default_value' => variable_get('curvycorners_all_pages', ''),
+    '#description' => t('Add CurvyCorners on all pages on all themes. Documentation is available at <a href="http://www.curvycorners.net/instructions/">http://www.curvycorners.net/instructions</a>. Enter everything that will go inside the script tags.'),
+  );
+  $form['curvycorners_textarea'] = array(
+    '#type' => 'textfield',
+    '#size' => 5,
+    '#title' => t('Set the default size for the above textbox'),
+    '#default_value' => variable_get('curvycorners_textarea', 10),
+  );
+  
+  return system_settings_form($form);
+}
+
+/******************************************************************************
+ * Module Functions                                                           *
+ ******************************************************************************/
+
+/**
+ * Checks to see if the JavaScript files exist in the curvycorners module folder
+ */
+function curvycorners_status() {
+  if (!file_exists(drupal_get_path('module', 'curvycorners') . '/curvycorners.js')) {
+    drupal_set_message(t('The CurvyCorners javascript is missing. Please download it from <a href="http://curvycorners.googlecode.com/files/curvycorners-2.0.4.zip">CurvyCorners.net</a> and place curvycorners.js inside the root of your %curvycorners_folder folder.', array('%curvycorners_folder' => drupal_get_path('module', 'curvycorners'))), 'error');
+  }
+}

@@ -1,0 +1,31 @@
+<?php
+function userlogin_block($op = 'list', $delta = 0, $edit = array()) {
+  switch($op) {
+    case 'list':
+      $blocks['userlogin-login']['info'] = t('Login / Register Block');
+      $blocks['userlogin-login']['cache'] = BLOCK_NO_CACHE;
+      
+      return $blocks;
+    
+    case 'view':
+      if($delta == 'userlogin-login') {
+        global $user;
+        if ($user->uid) {
+          $edit_account_link = l(t($user->name), 'user/'.$user->uid.'/edit');
+          $logout_link = l(t('Logout'), 'logout', array( 'query' => drupal_get_destination(), 'alias' => FALSE ));
+          $user_utilities = t('Welcome back, ') . $edit_account_link. ' ' .  t(' | ') . $logout_link;
+        }
+        else {
+          $login_link = l(t('Login'), 'user', array( 'query' => drupal_get_destination(), 'alias' => FALSE ));
+          $register_link = l(t('Register'), 'user/register');
+          $facebook_connect = '<br><div class="fb-login-button"><fb:login-button show-faces="false" width="300" max-rows="1"></fb:login-button></div>';
+          $user_utilities = $login_link . t(' | ') . $register_link . $facebook_connect;
+        }
+
+        $block['content'] = $user_utilities;
+      }
+      
+      return $block;
+  }
+}
+?>

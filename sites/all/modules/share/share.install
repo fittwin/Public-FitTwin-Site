@@ -1,0 +1,122 @@
+<?php
+// $Id: share.install,v 1.3.2.3.2.8 2009/03/26 21:12:20 greenskin Exp $
+
+/**
+ * Implementation of hook_schema().
+ */
+function share_schema() {
+  $schema['share'] = array(
+    'description' => t('Primary table for storing information pertaining to all widgets powered by Share.'),
+    'fields' => array(
+      'share_id' => array(
+        'description' => t('The primary identifier for Share widget.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE
+      ),
+      'module' => array(
+        'description' => t('The module name which is responsible for the building of the Share widget.'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => 'share'
+      ),
+      'label' => array(
+        'description' => t('An administrative name given to a Share widget.'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE
+      ),
+      'type' => array(
+        'description' => t("Where to show a Share widget, valid options are 'block', 'link', and 'share'."),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => 'link'
+      ),
+      'view' => array(
+        'description' => t("The location the Share widget will be displayed."),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 1,
+        'size' => 'tiny',
+        'unsigned' => TRUE
+      ),
+      'status' => array(
+        'description' => t('The status of a Share widget, whether the widget is enabled or not.'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 1,
+        'size' => 'tiny',
+        'unsigned' => TRUE
+      ),
+      'weight' => array(
+        'description' => t('The weight of a Share widget, compared amongst other Share widgets.'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      )
+    ),
+    'primary key' => array('share_id')
+  );
+  $schema['share_node_types'] = array(
+    'description' => t('Table used for tying node types to Share widgets.'),
+    'fields' => array(
+      'share_id' => array(
+        'description' => t('The Share widget this widget is attached to.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0
+      ),
+      'node_type' => array(
+        'description' => t('The node type associated with the Share widget.'),
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => ''
+      )
+    ),
+    'indexes' => array(
+      'share_id' => array('share_id'),
+      'node_type' => array('node_type')
+    )
+  );
+  $schema['share_terms'] = array(
+    'description' => t('Table used for tying terms to Share widgets'),
+    'fields' => array(
+      'share_id' => array(
+        'description' => t('The Share widget this widget is attached to.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0
+      ),
+      'tid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'Primary Key: The {term_data}.tid of a term assigned to the node.',
+      )
+    ),
+    'indexes' => array(
+      'share_id' => array('share_id'),
+    )
+  );
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function share_install() {
+  drupal_install_schema('share');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function share_uninstall() {
+  drupal_uninstall_schema('share');
+}

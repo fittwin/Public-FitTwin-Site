@@ -1,0 +1,45 @@
+<?php
+// $Id: link_codes.install,v 1.1.2.2 2009/03/26 21:12:22 greenskin Exp $
+
+/**
+ * Implementation of hook_schema().
+ */
+function link_codes_schema() {
+  $schema['share_link_codes'] = array(
+    'description' => t('Tabs for Share widgets.'),
+    'fields' => array(
+      'share_id' => array(
+        'description' => t('The Share widget this widget is attached to.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0
+      ),
+      'codes' => array(
+        'description' => t('The codes enabled for the Share widget.'),
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+        'default' => ''
+      )
+    ),
+    'indexes' => array(
+      'share_id' => array('share_id')
+    )
+  );
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function link_codes_install() {
+  drupal_install_schema('link_codes');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function link_codes_uninstall() {
+  drupal_uninstall_schema('link_codes');
+}

@@ -1,0 +1,5 @@
+/* $Id: uc_tc.css,v 1.1 2010/05/18 15:26:24 hanoii Exp $ */
+
+#uc_ct-pane > .form-item > label {
+  display: none;
+}

@@ -1,0 +1,281 @@
+<?php
+
+define('PROFILE_PICTURES_DEFAULT_SAVE_PATH', 'pictures/user-[uid]-[profile_picture-name].[profile_picture-extension]');
+
+/**
+ * Implementation of hook_views_api().
+ */
+function profile_pictures_views_api() {
+  return array(
+    'api' => 2.0,
+    'path' => drupal_get_path('module', 'profile_pictures') . '/views/',
+  );
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function profile_pictures_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'profile_admin_overview') {
+    $addnewfields = $form['addnewfields']['#value'];
+
+    // Parsing addnewfields item
+    $regex = '/^(<h2>[^<>]*<\/h2><ul>)(.*)(<\/ul>)$/';
+    preg_match($regex, $addnewfields, $match);
+    $head = $match[1];
+    $addnewfields = $match[2];
+    $tail = $match[3];
+
+    // Adding new field type
+    $addnewfields .=
+      '<li>' . l(t('picture'), 'admin/user/profile/add/picture') . '</li>';
+
+    $form['addnewfields']['#value'] = $head . $addnewfields . $tail;
+  }
+  elseif (($form_id == 'user_profile_form') || ($form_id == 'user_register') || ($form_id == 'profile_form_profile')) {
+    $register = ($form_id == 'user_register');
+    $acc = &$form['#parameters'][2];
+    $category = $form['#parameters'][3];
+    $have_picture = FALSE;
+
+    // Adding our fields' edit boxes
+    $res = _profile_get_fields($category, $register);
+    while ($field = db_fetch_object($res)) {
+      $category = $field->category;
+      if (!isset($form[$category])) {
+        continue;
+      }
+
+      $form[$category][$field->name]['#weight'] = $field->weight;
+      if ($field->type != 'picture') {
+        continue;
+      }
+      $have_picture = TRUE;
+      $opts = unserialize($field->options);
+
+      $curf = &$form[$category][$field->name];
+      $required = $field->required ? '<span class="form-required" title="'. t('This field is required.') .'">*</span>' : '';
+      $curf = array(
+        '#type'   => 'fieldset',
+        '#title'  => t($field->title) . $required,
+        '#weight' => $field->weight,
+        $field->name . '_upload' => array(
+          '#type'   => 'file',
+          '#title'  => t('Upload'),
+          '#size'   => 40,
+          '#description' => $field->explanation ? t($field->explanation) : '',
+          '#weight' => 2,
+        ),
+      );
+      // If there is current image, we display it
+      if ($acc->{$field->name}) {
+        $current = explode('?', $acc->{$field->name});
+        $current = $current[0];
+        $curf['current'] = array(
+          '#value'  => theme('profile_picture', $acc->{$field->name}, $field->title, '', $opts['imagecache_preset']),
+          '#weight' => 0,
+        );
+        $curf[$field->name . '_current'] = array(
+          '#type'  => 'value',
+          '#value' => $current,
+        );
+        if (!$field->required) {
+          $curf[$field->name . '_delete'] = array(
+            '#type'  => 'checkbox',
+            '#title' => t('Delete'),
+          );
+        }
+      }
+    }
+    if ($have_picture) {
+      // We need to validate all our fields, so...
+      $form['#validate'][] = 'profile_picture_validate';
+      // See #886510
+      $form['#attributes']['enctype'] = 'multipart/form-data'; // See [#886510]
+    }
+  }
+}
+
+/**
+ * Fields validation callback
+ */
+function profile_picture_validate($form, &$form_state) {
+  $register = ($form_id == 'user_register');
+  $acc = &$form['#parameters'][2];
+  $category = $form['#parameters'][3];
+
+  // Select fields we need to display
+  $res = db_query('SELECT * FROM {profile_fields} WHERE (type="picture")');
+  while ($field = db_fetch_object($res)) {
+    $category = $field->category;
+    if (!isset($form[$category])) {
+      continue;
+    }
+
+    $field->options = $opts = unserialize($field->options);
+    $form_state['values'][$field->name] = $form_state['values'][$field->name . '_current'];
+
+    // Fill in file validators
+    $validators = array(
+      'file_validate_is_image' => array(),
+      'file_validate_image_resolution' => array($opts['maxw'] . 'x' . $opts['maxh']),
+      'file_validate_size' => array($opts['maxsz']),
+    );
+
+    $cur = $form_state['values'][$field->name . '_current'];
+    // If new file is uploaded or old must be deleted
+    if (($file = file_save_upload($field->name . '_upload', $validators)) ||
+      $form_state['values'][$field->name . '_delete']) {
+
+      $delete_old = $form_state['values'][$field->name . '_delete'] && !$field->required;
+
+      // Saving new file
+      if ($file) {
+        $info = image_get_info($file->filepath);
+        if (module_exists('token')) {
+          $dest = isset($opts['path']) ? $opts['path'] : PROFILE_PICTURES_DEFAULT_SAVE_PATH;
+          $dest = token_replace($dest, 'user', $acc);
+
+          $picture = $field;
+          $picture->filename = $file->filename;
+          $picture->extension = $info['extension'];
+          $dest = token_replace($dest, 'profile_picture', $picture);
+        }
+        else {
+          $dest =
+            variable_get('user_picture_path', 'pictures') .
+            '/user-' . $acc->uid . '-' . $field->name . '.' . $info['extension'];
+        }
+
+        $dir = file_create_path() . '/' . $dest;
+        $dir = preg_replace('#(^.*[/\\\\])[^/\\\\]*$#', '$1', $dir);
+        file_check_directory($dir, FILE_CREATE_DIRECTORY, $field->name . '_upload');
+        if (file_copy($file, $dest, FILE_EXISTS_REPLACE)) {
+          $form_state['values'][$field->name] = $file->filepath . '?' . md5(uniqid(mt_rand()));
+          $delete_old = $file->filepath != $cur;
+        }
+        else {
+          form_set_error($field->name . '_upload', t('Failed to upload the picture for %type', array('%type' => $field->title)));
+          $delete_old = FALSE;
+        }
+      }
+      else {
+        $form_state['values'][$field->name] = '';
+      }
+
+      // Deleting the old one
+      if (file_exists($cur) && $delete_old) {
+        if (function_exists('imagecache_image_flush'))
+          imagecache_image_flush($cur);
+        file_delete($cur);
+      }
+    }
+    else {
+      $form_state['values'][$field->name] = $form_state['values']['_account']->{$field->name};
+    }
+    if (empty($form_state['values'][$field->name]) && $field->required) {
+      $el = &$form[$field->category][$field->name][$field->name . '_upload'];
+      form_error($el, t('!name field is required.', array('!name' => $el['#title'])));
+    }
+
+    // We need to delete some unusable fields' values from user's account
+    foreach (array('_current', '_upload', '_delete') as $t) {
+      unset($form_state['values'][$field->name . $t]);
+    }
+  }
+}
+
+/**
+ * Implementation of hook_profile_alter().
+ */
+function profile_pictures_profile_alter(&$acc) {
+  $cont = &$acc->content;
+
+  // Getting fields (global/private)
+  if (user_access('administer users') || $GLOBALS['user']->uid == $user->uid) {
+    $res = db_query('SELECT * FROM {profile_fields} WHERE visibility <> %d AND type="picture" ORDER BY category, weight', PROFILE_HIDDEN);
+  }
+  else {
+    $res = db_query('SELECT * FROM {profile_fields} WHERE visibility <> %d AND visibility <> %d AND type="picture" ORDER BY category, weight', PROFILE_PRIVATE, PROFILE_HIDDEN);
+  }
+  while ($field = db_fetch_object($res)) {
+    if (empty($acc->{$field->name})) continue;
+
+    if (!isset($cont[$field->category])) {
+      $cont[$field->category] = array(
+        '#type'  => 'user_profile_category',
+        '#title' => check_plain($field->category),
+      );
+    }
+
+    $opts = unserialize($field->options);
+    // Just display image
+    $cont[$field->category][$field->name] = array(
+      '#type'   => 'user_profile_item',
+      '#title'  => check_plain($field->title),
+      '#value'  => theme('profile_picture', $acc->{$field->name}, $field->title, '', $opts['imagecache_preset']),
+      '#weight' => $field->weight,
+    );
+  }
+}
+
+/**
+ * Implementation of hook_menu_alter().
+ */
+function profile_pictures_menu_alter(&$callbacks) {
+  // Here we need to override profile.module's menu callbacks
+  // Because there is not any other API
+  foreach (array('add', 'edit') as $act)
+    if (isset($callbacks['admin/user/profile/' . $act])) {
+      $module = $callbacks['admin/user/profile/' . $act]['module'];
+      $file = $callbacks['admin/user/profile/' . $act]['file'];
+
+      $callbacks["admin/user/profile/$act"]['module'] = 'profile_pictures';
+      $callbacks["admin/user/profile/$act"]['file']   = 'profile_pictures.admin.inc';
+
+      $args = &$callbacks["admin/user/profile/$act"]['page arguments'];
+      array_shift($args);
+      $args[] = drupal_get_path('module', $module) . '/' . $file;
+      array_unshift($args, 'profile_pictures_field_form');
+    }
+}
+
+/**
+ * Implementatino of hook_token_list().
+ */
+function profile_pictures_token_list($type = 'all') {
+  $tokens = array();
+  if (($type == 'all') || ($type == 'profile_picture')) {
+    $tokens['profile_picture']['profile_picture-filename'] = t("File name");
+    $tokens['profile_picture']['profile_picture-extension'] = t("File extension");
+    $tokens['profile_picture']['profile_picture-name'] = t("Field name");
+  }
+  return $tokens;
+}
+
+/**
+ * Implementatino of hook_token_values().
+ */
+function profile_pictures_token_values($type = 'all', $object = NULL) {
+  $tokens = array();
+  if ($type == 'profile_picture') {
+    $tokens['profile_picture-filename'] = $object->filename;
+    $tokens['profile_picture-extension'] = $object->extension;
+    $tokens['profile_picture-name'] = $object->name;
+  }
+  return $tokens;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function profile_pictures_theme() {
+  return array(
+    'profile_pictures_token_list' => array(
+      'file' => 'profile_pictures.theme.inc',
+    ),
+    'profile_picture' => array(
+      'file' => 'profile_pictures.theme.inc',
+    ),
+  );
+}

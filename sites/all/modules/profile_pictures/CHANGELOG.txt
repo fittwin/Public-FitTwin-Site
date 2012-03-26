@@ -1,0 +1,63 @@
+
+HEAD:
+  Fixed [#917369] by yeputons (reported by dc1258): invalid callbacks so you cannot change any fields except pictures.
+  Fixed [#917912] by wowik73: added checking wheither is imagecache_preset passed in theme_profile_picture empty.
+  Fixed [#905782] by yeputons (reported by markwittens): now we can make fields required.
+
+6.x-1.3:
+  Fixed [#855416] by yeputons (reported by jenna.tollerson): explanation doesn't show in UI:
+      Explanation is stored in $field->explanation, not $field->description. Changed.
+  Fixed [#849978] by yeputons (reported by KasperChristensen): image is being deleting when
+      saving non-picture fields (used with One Page Profile).
+  Fixed [#884200] by yeputons (repoted by bamakojeff): removed drupal.org packaging 
+      script information from profile_pictures.info.
+  Fixed by yeputons: form_set_error in profile_picture_validate was called
+      for unexistent element 'profile_file'. Changed to $field->name . '_upload'.
+  Fixed [#879102] by yeputons (reported by kayusee): didn't filling in
+      $form['#validate'] and $form['#submit'] in admin form, so some 
+      modules can break out callbacks while overwriting this attirbutes.
+  Fixed [#886510] by wowik73: added form enctype 
+      for correct work in user creation form.
+  Fixed [#890966] by yeputons (reported by verta): typing error in 
+      message.
+  Fixed [#890980] by yeputons (reported by verta): added #required attribute
+      and default values to 'maxsize' and 'maxdims' fields in admin form.
+  Fixed [#889222] by yeputons (reported by wowik73): creating directory for
+      files if not exists.
+
+6.x-1.2:
+  Fixed [#810688] by yeputons (reported by jpcwebb): preventing non-picture fields of saving.
+      Did not call profile_pictures_field_form_submit() when editing non-picture fields. 
+  Fixed: debug output in profile_pictures_field.inc
+
+6.x-1.1-dev:
+  Fixed saving bug in admin panel (#767422)
+  Added translation wrapper for profile field's names
+  Added empty checking before applying translation wrapper in "upload file" description
+  Added profile_form_profile altering (for integration with One Page Profile) (#786176)
+  Moved [random-md5] from file name to image link ([filename]?[random-md5])
+  Added theme_profile_picture function to process ?[random-md5] correctly in theme_image
+  Added custom saving paths support with Token module (#780632)
+
+  started development of imagecache support: (#780616)
+    attributes argument of theme_profile_picture changed to imagecache_preset
+    (but if this argument is an array, it process as attributes list)
+
+  Added imagecache support for views' fields
+  Added $opts array initialization in profile_pictures_form_field_submit
+
+  Fixed image displaying bug on the edit page
+  Now we don't disable 'maximum dimensions' settings for profile field to decrease file size
+  Added JS script for hiding 'maximum dimensions' settings in views field's options when we select imagecache preset
+  Fixed image removing (extra fields from $account) bug
+  Added imagecache_image_flush to image deleting procedures
+  Cleaned theme_profile_picture callback and added ($url=='') processer
+  Added checking for profile_privacy access rights in views field (#786176)
+  Added drupal_alter('form', ..., 'profile_field_form') in field edit form callback to integrate with profile_privacy module (#786176)
+
+  Fixed some language bugs
+  Added imagecache checking before using it's API in uninistall and update picture functions
+  Fixed 'displaying empty field' bug (#800120)
+
+6.x-1.0:
+  The first version.

@@ -1,0 +1,13 @@
+; $Id: link_codes.info,v 1.1.2.2 2009/03/26 21:12:22 greenskin Exp $
+name = Link Codes
+description = "Adds a tab in the Share widget which provides various types of link codes for the viewed node."
+dependencies[] = share
+package = Share - tabs
+core = 6.x
+
+; Information added by drupal.org packaging script on 2009-03-26
+version = "6.x-2.0-alpha2"
+core = "6.x"
+project = "share"
+datestamp = "1238103172"
+

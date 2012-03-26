@@ -1,0 +1,25 @@
+/* $Id: share_widget_block.css,v 1.1.2.1 2009/03/26 21:12:22 greenskin Exp $ */
+
+div.share-block-tab {
+  border-top: 1px solid #000000;
+}
+div.share-block-tab-first {
+  border-top: 0px none;
+}
+div.share-block h2 {
+  border-bottom: 1px solid #999999;
+  text-align: center;
+  cursor: pointer;
+}
+div.share-block-tab-last h2 {
+  border-bottom: 0px none;
+}
+div.share-block-tab-content ul li {
+  background: transparent none repeat scroll 0 0;
+  padding: 0px 0px 0.2px 0px;
+}
+div.share-block .form-text,
+div.share-block .form-textarea,
+.link-codes {
+  width: 98%;
+}

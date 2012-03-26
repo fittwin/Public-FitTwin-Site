@@ -1,0 +1,86 @@
+<?php
+// $Id: sharethis_widget.module,v 1.1.2.1 2009/03/26 21:12:23 greenskin Exp $
+
+/**
+ * @file
+ * Allows the use of ShareThis provided by the ShareThis module.
+ *
+ * This module allows the creation of ShareThis links/widgets using the Share
+ * module as a base which allows for multiple ShareThis links/widgets.
+ *
+ * Written by greenSkin.
+ */
+
+/*******************************************************************************
+ * Hook Functions (Drupal)
+ ******************************************************************************/
+
+/**
+ * Implementation of hook_perm().
+ */
+function sharethis_widget_perm() {
+  return array('use sharethis widget');
+}
+
+/*******************************************************************************
+ * Hook Functions (Share)
+ ******************************************************************************/
+
+/**
+ * Implementation of hook_share_info().
+ */
+function sharethis_widget_share_info() {
+  return array(
+    'name' => t('ShareThis'),
+    'module' => 'sharethis_widget',
+    'widget' => array(
+      'module' => 'sharethis_widget',
+      'label' => t('ShareThis widget'),
+      'name' => t('ShareThis')
+    )
+  );
+}
+
+/**
+ * Implementation of hook_share_render().
+ */
+function sharethis_widget_share_render($op, $share, $node = NULL) {
+  switch ($op) {
+    case 'link':
+      $links = array();
+      if (is_object($node)) {
+        $links['share_'. $share->share_id .'_'. $node->nid] = array(
+          'title' => $share->render($node),
+          'html' => TRUE
+        );
+      }
+      return $links;
+    case 'node':
+      $content = array();
+      if (is_object($node)) {
+        $content['share_'. $share->share_id .'_'. $node->nid] = array(
+          '#value' => $share->render($node),
+          '#weight' => $share->weight
+        );
+      }
+      return $content;
+    case 'block':
+      return $share->render($node);
+  }
+}
+
+/*******************************************************************************
+ * Callback Functions, Forms, and Tables
+ ******************************************************************************/
+
+
+
+/*******************************************************************************
+ * Module and Helper Functions
+ ******************************************************************************/
+
+
+
+/*******************************************************************************
+ * Theme Functions
+ ******************************************************************************/

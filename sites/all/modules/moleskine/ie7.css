@@ -1,0 +1,20 @@
+/* $Id: ie7.css,v 1.1.4.3 2008/07/13 05:53:13 couzinhub Exp $ 
+
+	Moleskine Theme By Hubert Florin
+	
+	Internet Explorer 7 Stylesheet
+	
+*/
+
+*{
+	word-wrap:break-word;
+}
+ul.primary li a{
+	padding-top:0;
+}
+#sidebar-right .more-link {
+	background-position:117px 8px;
+}
+.poll .vote-form .choices{
+	margin-left:150px;
+}

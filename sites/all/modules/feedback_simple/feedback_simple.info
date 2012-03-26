@@ -1,0 +1,10 @@
+name = Feedback Simple
+description = A very simple, very light, CSS only Feedback tab.
+core = 6.x
+
+; Information added by drupal.org packaging script on 2011-08-12
+version = "6.x-1.2"
+core = "6.x"
+project = "feedback_simple"
+datestamp = "1313111518"
+

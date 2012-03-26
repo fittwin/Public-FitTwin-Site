@@ -1,0 +1,408 @@
+<?php
+// $Id: uc_attribute_cck.module,v 1.8 2011/02/07 12:03:20 trungonly Exp $
+
+/**
+ * @file
+ * Using CCK fields as Ubercart product attributes
+ *
+ * Instead of manually creating Ubercart core Attributes, this module allows using
+ * any CCK field as attribute. The options could be in dropdown list, node reference,
+ * user reference, textfield, auto-complete, or any CCK widget. The list even be
+ * automatically generated in CCK field configuration by using Views filter.
+ */
+
+
+/**
+ * Implements hook_menu().
+ */
+function uc_attribute_cck_menu() {
+  $items['node/%node/edit/attributes_cck'] = array(
+    'title' => 'CCK Attributes',
+    'description' => 'Defines Attributes using CCK fields',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_attributes_cck_form', 1),
+    'access callback' => 'uc_attribute_cck_product_access',
+    'access arguments' => array(1),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 2,
+    'file' => 'uc_attribute_cck.admin.inc',
+  );
+
+  // Menu items for default product class CCK Attributes.
+  $items['admin/store/products/classes/%uc_product_class/attributes_cck'] = array(
+    'title' => 'CCK Attributes',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_attributes_cck_form', 4, 'class'),
+    'access callback' => 'uc_attribute_cck_product_class_access',
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 2,
+    'file' => 'uc_attribute_cck.admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function uc_attribute_cck_theme() {
+  return array(
+    'uc_product_attributes_cck' => array(
+      'arguments' => array('element' => NULL),
+    ),
+  );
+}
+
+/**
+ * Implements hook_perm().
+ */
+function uc_attribute_cck_perm() {
+  return array('administer product attributes cck', 'administer class attributes cck');
+}
+
+/**
+ * Implements hook_help().
+ */
+function uc_attribute_cck_help($path, $arg) {
+  switch ($path) {
+    case 'node/%/edit/attributes_cck':
+      $output = '<p>'. t('Select content type(s) that have CCK field(s) for using as CCK attribute(s) for this product.') .'</p>';
+      $output .= '<p>'. t('Note that CCK Attributes has not supported specific Options price/cost/weight, Adjustment or Stock yet.') .'</p>';
+      return $output;
+  }
+}
+
+/**
+ * Returns a themed set of CCK attribute options for use in order displays.
+ *
+ * @param $element
+ *   Structured array containing the set of attributes with each element
+ *   having a key of attribute ID and the following keys:
+ *     #attribute_name - CCK attribute name
+ *     #options - Array of option names
+ * @return Themed set of attribute options.
+ */
+function theme_uc_product_attributes_cck($element) {
+  $option_rows = array();
+
+  foreach (element_children($element) as $key) {
+    $optionstr = implode(',', (array)$element[$key]['#options']);
+
+    $option_rows[$key] = t('@attribute: !option', array('@attribute' => $element[$key]['#attribute_name'], '!option' => $optionstr));
+  }
+
+  if (!empty($option_rows)) {
+    return theme('item_list', array_values($option_rows), NULL, 'ul', array('class' => 'product-description'));
+  }
+
+  return '';
+}
+
+/**
+ * Access callback for editing a product's CCK attributes.
+ */
+function uc_attribute_cck_product_access($node) {
+  if ($node->type == 'product_kit') {
+    return FALSE;
+  }
+
+  return uc_product_is_product($node) && node_access('update', $node) && user_access('administer product attributes cck');
+}
+
+/**
+ * Access callback for editing a product class's CCK attributes.
+ */
+function uc_attribute_cck_product_class_access() {
+  return user_access('administer product classes') && user_access('administer class attributes cck');
+}
+
+/**
+ * Implements hook_uc_form_alter().
+ *
+ * Attach CCK option selectors to the form with the "Add to Cart" button.
+ *
+ */
+function uc_attribute_cck_uc_form_alter(&$form, &$form_state, $form_id) {
+  if (strpos($form_id, 'add_to_cart_form') || strpos($form_id, 'add_product_form')) {
+    $node =& $form['node']['#value'];
+    // If the node has a product list, add CCK attributes to them
+    if (isset($form['products']) && count(element_children($form['products']))) {
+      foreach (element_children($form['products']) as $key) {
+        _uc_attribute_cck_alter_form($form_id, $form_state, node_load($key), $form, $form['products'][$key]['attributes_cck']);
+        if (is_array($form['products'][$key]['attributes_cck'])) {
+          $form['products'][$key]['#type'] = 'fieldset';
+        }
+      }
+    }
+    // If not, add attributes to the node.
+    else {
+      _uc_attribute_cck_alter_form($form_id, $form_state, $node, $form, $form['attributes_cck']);
+
+      if (is_array($form['attributes_cck'])) {
+        $form['attributes_cck']['#weight'] = -1;
+      }
+    }
+  }
+}
+
+/**
+ * Helper function for uc_attribute_form_alter().
+ *
+ * @see theme_uc_attribute_add_to_cart()
+ */
+function _uc_attribute_cck_alter_form($form_id, &$form_state, &$product, &$form, &$form_attributes_cck) {
+
+  // If the product doesn't have CCK attributes, return the form as it is.
+  if (!isset($product->attributes_cck)) {
+    $product->attributes_cck = uc_product_get_attributes_cck($product);
+  }
+  if (!is_array($product->attributes_cck) || empty($product->attributes_cck)) {
+    return NULL;
+  }
+
+  $form_attributes_cck = array();
+  $form_state_attributes_cck = array('storage' => NULL, 'submitted' => FALSE);
+
+  if (count($product->attributes_cck['types'])) {
+
+    foreach ($product->attributes_cck['types'] as $type_name) {
+
+      $type = content_types($type_name);
+
+      // We don't want to invoke all implemented modules for 'type_node_form' form_id,
+      // because it may cause unwanted results.
+      // So call only content and fieldgroup this case. Tell me if you want more.
+      $invoke_modules = array('content', 'fieldgroup');
+
+      $form_attributes_cck['type'] = array (
+        '#type' => 'value',
+        '#value' => $type_name,                                 // prepare for module_form_alter()
+      );
+      $form_attributes_cck['#node']->type = $type_name;     // set because some modules require it
+
+      foreach ($invoke_modules as $module) {
+        if (module_hook($module, 'form_alter')) {
+          // Can't use module_invoke because we want
+          // to be able to use a reference to $form and $form_state.
+          $function = $module .'_form_alter';
+          $function($form_attributes_cck, $form_state_attributes_cck, $type_name . '_node_form');
+        }
+      }
+    }
+    $form['#field_info'] = $form_attributes_cck['#field_info'];         // needed for CCK to fill out field values
+  }
+
+  $form_attributes_cck['#tree'] = TRUE;
+}
+
+/**
+ * Store the customer's choices in the cart.
+ */
+function uc_attribute_cck_add_to_cart_data($form_values) {
+  if (isset($form_values['attributes_cck'])) {
+    return array('attributes_cck' => $form_values['attributes_cck']);
+  }
+  else {
+    return array('attributes_cck' => array());
+  }
+}
+
+/**
+ * Implements hook_product_description().
+ *
+ * This also add distinc descriptions for products in the cart
+ */
+function uc_attribute_cck_product_description($product) {
+  $description = array(
+    'attributes_cck' => array(
+      '#product' => array(
+        '#type' => 'value',
+        '#value' => $product,
+      ),
+      '#theme' => 'uc_product_attributes_cck',
+      '#weight' => 1,
+    ),
+  );
+
+  $desc = & $description['attributes_cck'];
+
+  // Cart version of the product has numeric attribute => option values so we
+  // need to retrieve the right ones
+  $weight = 0;
+  if (empty($product->order_id)) {                                // still in the cart, not yet ordered
+
+    foreach (_uc_cart_product_get_options_cck($product) as $option) {
+      if (!isset($desc[$option['aid']])) {
+        $desc[$option['aid']]['#attribute_name'] = $option['attribute'];
+        $desc[$option['aid']]['#options'] = array($option['name']);
+      }
+      else {
+        $desc[$option['aid']]['#options'][] = $option['name'];
+      }
+      $desc[$option['aid']]['#weight'] = $weight++;
+    }
+  }
+  else {                                                          // product in order
+
+    foreach (_uc_cart_product_get_options_cck($product) as $field_name => $option) {
+      $desc[] = array(
+        '#attribute_name' => $option['attribute'],
+        '#options' => $option['name'],
+        '#weight' => $weight++,
+      );
+    }
+  }
+
+  return $description;
+}
+
+/**
+ * Implements hook_nodeapi().
+ */
+function uc_attribute_cck_nodeapi(&$node, $op, $arg3 = NULL, $arg4 = NULL) {
+  if (uc_product_is_product($node->type)) {
+    switch ($op) {
+      case 'load':
+        $attributes_cck = uc_product_get_attributes_cck($node);
+
+        if (is_array($attributes_cck) && !empty($attributes_cck)) {
+          $node->attributes_cck = $attributes_cck;
+          return array('attributes_cck' => $attributes_cck);
+        }
+        break;
+      case "delete":
+        // the node is gone forever, why not cleanning up the database
+        db_query("DELETE FROM {uc_attribute_cck_node_types} WHERE nid = %d", $node->nid);
+        break;
+    }
+  }
+}
+
+/**
+ * Declares uc_product_get_attributes_cck() API.
+ */
+function uc_product_get_attributes_cck(&$product) {
+  static $attributes_cck;
+
+  $nid = $product->nid;
+
+  if (isset($attributes_cck[$nid]))  return $attributes_cck[$nid];          // cache is good
+
+  $content_fields = array();
+  $types = array();
+
+  // Product specific
+  $result = db_query("SELECT type FROM {uc_attribute_cck_node_types} WHERE nid = %d", $nid);
+
+  $no_type_override_product_class = false;
+  while ($row = &db_fetch_object($result)) {
+    if ($row->type == '') {                                   // Empty type
+      $no_type_override_product_class = true;                 // Override product class definition, but clear all content types.
+    }
+    else {
+      $types[$row->type] = $row->type;
+      $content_type = content_types($row->type);
+      $content_fields += $content_type['fields'];
+    }    
+  }
+
+  if (!count($types) && !$no_type_override_product_class) {    // Product CCK attributes not found, we use default class CCK attributes if any
+
+    // Product class specific
+    $result = db_query("SELECT type FROM {uc_attribute_cck_class_types} WHERE pcid = '%s'", $product->type);
+
+    while ($row = &db_fetch_object($result)) {
+      $types[$row->type] = $row->type;
+      $content_type = content_types($row->type);
+      $content_fields += $content_type['fields'];
+    }    
+  }
+
+  $attributes_cck[$nid]['types'] = &$types;
+
+  $attributes_cck[$nid]['fields'] = array();
+  foreach ($content_fields as $field) {
+    if (in_array($field['type_name'], $types)) {
+      $attributes_cck[$nid]['fields'][$field['field_name']] = $field;
+    }
+  }
+
+  return $attributes_cck[$nid];
+}
+
+/**
+ * Declares uc_class_get_attributes_cck() API.
+ */
+function uc_class_get_attributes_cck($pcid) {
+  static $attributes_cck;
+
+  if (isset($attributes_cck[$pcid]))  return $attributes_cck[$pcid];          // cache is good
+
+  $result = db_query("SELECT type FROM {uc_attribute_cck_class_types} WHERE pcid = '%s'", $pcid);
+
+  $types = array();
+  while ($row = &db_fetch_array($result)) {
+    $types[] = $row['type'];
+  }
+  $attributes_cck[$pcid]['types'] = &$types;
+
+  $content_fields = &content_fields();
+  $attributes_cck[$pcid]['fields'] = array();
+
+  foreach ($content_fields as $field) {
+    if (in_array($field['type_name'], $types)) {
+      $attributes_cck[$pcid]['fields'][$field['field_name']] = $field;
+    }
+  }
+
+  return $attributes_cck[$pcid];
+}
+
+/**
+ * Get the options chosen for a product that is in the cart.
+ *
+ * @param $item
+ *   An element of the array returned by uc_cart_get_contents.
+ * @return
+ *   Array of options chosen by a customer, indexed by attribute ids. Each
+ *   element stores the attribute name and the option object chosen.
+ */
+function _uc_cart_product_get_options_cck(&$item) {
+  $options = array();
+  $data = &$item->data;
+  $node = node_load($item->nid);
+
+  if (!empty($data['attributes_cck']) && is_array($data['attributes_cck'])) {
+
+    _uc_attribute_cck_get_children_options($data['attributes_cck'], $node, $options);   // recusive call
+
+  }
+  return $options;
+}
+
+/**
+ * Helper function for recusive group fields.
+ */
+function _uc_attribute_cck_get_children_options(&$fields, &$node, &$options) {          // recusive function
+  foreach ($fields as $field_name => $field) {
+    if (isset($field[0]) && isset($node->attributes_cck['fields'][$field_name])) {
+      $attributes_cck = &$node->attributes_cck['fields'][$field_name];
+      $display_settings = $attributes_cck['display_settings']['teaser']['format'] ? $attributes_cck['display_settings']['teaser']['format'] : 'default';  // using teaser
+      $name = $attributes_cck['widget']['label'];                       // label
+      $value = &content_format($field_name, $field[0], $display_settings);
+      if ($value) {
+        $options[$field_name] = array(
+          'attribute' => $name,
+          'aid' => $field_name,
+          'oid' => 0,
+          'name' => $value,
+          'cost' => 0,
+          'price' => 0,
+          'weight' => 0,
+        );
+      }
+    }
+    else if (is_array($field)) {                      // down to the children of a possible group field
+      _uc_attribute_cck_get_children_options ($field, $node, $options);          // recusive call
+    }
+  }
+}

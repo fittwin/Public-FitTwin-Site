@@ -1,0 +1,14 @@
+; $Id: sharethis_widget.info,v 1.1.2.1 2009/03/26 21:12:23 greenskin Exp $
+name = ShareThis widget
+description = "Provides the ability to use ShareThis."
+dependencies[] = share
+dependencies[] = sharethis
+package = Share
+core = 6.x
+
+; Information added by drupal.org packaging script on 2009-03-26
+version = "6.x-2.0-alpha2"
+core = "6.x"
+project = "share"
+datestamp = "1238103172"
+

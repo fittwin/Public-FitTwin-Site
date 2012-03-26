@@ -1,0 +1,7 @@
+<div id="header-logo-title"> 
+    <div id="header-logo"> 
+        <a href="http://fittwin.com/" title="Home" rel="home" id="logo"><img src="http://fittwin.com//sites/default/files/fittwin_logo.jpg" alt="Home" />
+            <div id="name-and-slogan">"FitTwin. Fitness Your Way."</div>
+        </a> 
+    </div> 
+</div> 

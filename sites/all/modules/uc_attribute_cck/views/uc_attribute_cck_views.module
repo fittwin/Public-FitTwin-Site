@@ -1,0 +1,46 @@
+<?php
+// $Id: uc_attribute_cck_views.module,v 1.1 2010/10/11 15:21:53 trungonly Exp $
+
+/**
+ * @file
+ * Makes Ubercart CCK Attribute data and filters available for Views.
+ *
+ */
+
+/**
+ * Implements hook_views_api().
+ */
+function uc_attribute_cck_views_views_api() {
+  return array(
+    'api' => '2.0',
+  );
+}
+
+/**
+ * Gets all available CCK Attribute fields.
+ */
+function _uc_attribute_cck_views_fetch_fields() {
+  $options = array();
+
+  $result = db_query("SELECT DISTINCT(type) AS type FROM {uc_attribute_cck_node_types}");
+  $node_get_types = array();
+  while ($row = db_fetch_array($result)) {
+    $node_get_types[] = $row['type'];
+  }
+  $content_types = &content_types();
+
+  foreach ($node_get_types as $type) {
+    if (!is_array($content_types[$type]['fields'])) continue;
+
+    foreach ($content_types[$type]['fields'] as $field_name => $field) {
+      $options[$field_name] = array(
+        'type' => $type,
+        'title' => $field['widget']['label'],
+        'group' => $content_types[$type]['name'],
+        'help' => $field['widget']['description'],
+      );
+    }
+  }
+
+  return $options;
+}

@@ -1,0 +1,91 @@
+<?php
+// $Id: uc_attribute_cck.install,v 1.2 2011/01/04 14:40:18 trungonly Exp $
+
+/**
+ * @file
+ * Install, update and uninstall functions for the CCK Attributes module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function uc_attribute_cck_install() {
+  drupal_install_schema('uc_attribute_cck');
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function uc_attribute_cck_uninstall() {
+  drupal_uninstall_schema('uc_attribute_cck');
+}
+
+/**
+ * Implements hook_schema().
+ */
+function uc_attribute_cck_schema() {
+
+  $schema['uc_attribute_cck_node_types'] = array(
+    'description' => 'Stores which node types CCK attributes may be used with.',
+    'fields' => array(
+      'nid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'Primary Key: the {node}.nid of the product.',
+      ),
+      'type' => array(
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The {node}.type of the node type for which the product may be used.',
+      ),
+    ),
+    'primary key' => array('type', 'nid'),
+    'indexes' => array(
+      'nid' => array('nid'),
+    ),
+  );
+  
+  $schema['uc_attribute_cck_class_types'] = array(
+    'description' => 'Stores which content types CCK attributes may be used with product class.',
+    'fields' => array(
+      'pcid' => array(
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'Primary Key: the product class id.',
+      ),
+      'type' => array(
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The {node}.type of the node type for which the class may be used.',
+      ),
+    ),
+    'primary key' => array('type', 'pcid'),
+    'indexes' => array(
+      'pcid' => array('pcid'),
+    ),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implements hook_update().
+ * 
+ */
+function uc_attribute_cck_update_6100() {
+  
+  $schema = uc_attribute_cck_schema();
+  
+  $update = array();
+  db_create_table($update, 'uc_attribute_cck_class_types', $schema['uc_attribute_cck_class_types']);
+  return $update;
+}
+

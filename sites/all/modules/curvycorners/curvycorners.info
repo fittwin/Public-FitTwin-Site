@@ -1,0 +1,14 @@
+; $Id: curvycorners.info,v 1.1.2.1 2010/11/10 21:19:45 theoverclocked Exp $
+
+name = "Curvy Corners"
+description = "Curvy Corners is a free JavaScript program that will create on-the-fly rounded corners for any HTML DIV element, that look as good as any graphically created corners."
+
+version = "6.x-1.0-dev"
+project = "curvycorners"
+core = 6.x
+; Information added by drupal.org packaging script on 2010-11-11
+version = "6.x-1.0"
+core = "6.x"
+project = "curvycorners"
+datestamp = "1289451043"
+

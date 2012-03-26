@@ -1,0 +1,23 @@
+$Id: CHANGELOG.txt,v 1.6 2011/02/07 12:06:20 trungonly Exp $
+
+Ubercart CCK Attribute 6.x-1.x, xxxx-xx-xx
+------------------------------------------
+
+Ubercart CCK Attribute 6.x-1.6, 2011-02-06
+------------------------------------------
+- Fixed bug #1048814 by risharde: CCK attribute does not show up if the CCK attribute is a shared field to another Content Type.
+- Fixed bug #1009774 by zeezhao: Display uc_attribute_cck on invoice/email.
+- Feature added: Product class support, thanks for financial support of Todd Zebert.
+
+Ubercart CCK Attribute 6.x-1.4, 2010-11-26
+------------------------------------------
+- Fixed bug #981332 by johnsolo: Grouped fields don't work.
+- Fixed bug #982056 by iub98: Error non array when checking out
+
+Ubercart CCK Attribute 6.x-1.3, 2010-11-18
+------------------------------------------
+- Fixed bug #974298 by TwoD: Nested forms break "Add to cart" button in IE.
+
+Ubercart CCK Attribute 6.x-0.1, 2010-09-26
+------------------------------------------
+- Initial release for Drupal 6.

@@ -1,0 +1,52 @@
+/* $Id: tinymce.css,v 1.2.2.2 2008/07/17 22:43:36 couzinhub Exp $
+
+	Moleskine Tinymce Theme By Hubert Florin
+*/
+
+body{
+	padding:10px;
+	color:#6D3A00;
+	font:14px/18px georgia, times, serif;
+	background-color:#fff;
+}
+
+/* standard rules */
+
+em{
+	color:#3A1F00;
+	font-style:italic;
+	border-bottom:1px dotted #CCC;
+}
+p code, dd code, dt code, li code, a code{
+	font-size:1.2em;
+	display:inline;
+	border:none;
+	padding:0;
+	margin:0;
+}
+pre, code{
+	color:#222;
+	border:1px solid #CCC;
+	display:block;
+	padding:15px;
+	font-size:1em;
+	margin:10px 0;
+}
+cite{
+	color:#9F5500;
+}
+cite:before{
+	color:#B2987A;
+	content:'" ';
+}
+cite:after{
+	color:#B2987A;
+	content:' "';
+}
+blockquote{
+	font-style:italic;
+	padding:0 10px;
+	margin:10px;
+	border:1px dotted #cdd;
+	background-color:#FFFBF0;
+}

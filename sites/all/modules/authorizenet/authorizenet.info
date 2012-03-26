@@ -1,0 +1,12 @@
+name = Authorize.Net
+description = Support for the Authorize.Net payment gatway through the Payment API
+package = Payment API
+dependencies[] = pay
+core = 6.x
+
+; Information added by drupal.org packaging script on 2011-05-09
+version = "6.x-1.0-alpha2"
+core = "6.x"
+project = "authorizenet"
+datestamp = "1304966814"
+
